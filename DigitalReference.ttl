@@ -7962,9 +7962,7 @@ ecsel-dr-SO:uses_one_or_more_technology rdf:type owl:ObjectProperty ;
 
 ###  http://www.w3id.org/ecsel-dr/quality/is_derived_from_lot
 <http://www.w3id.org/ecsel-dr/quality/is_derived_from_lot> rdf:type owl:ObjectProperty ,
-                                                                    owl:AsymmetricProperty ,
-                                                                    owl:TransitiveProperty ,
-                                                                    owl:IrreflexiveProperty ;
+                                                                    owl:TransitiveProperty ;
                                                            rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                            rdfs:range <http://www.w3id.org/digital-reference/quality/Lot> .
 
@@ -14128,11 +14126,12 @@ ecsel-dr-SO:workforce rdf:type owl:DatatypeProperty ;
 #    Classes
 #################################################################
 
-###  http://purl.org/dc/dcmitype/Service
-<http://purl.org/dc/dcmitype/Service> rdf:type owl:Class ;
-                                      rdfs:subClassOf ecsel-dr-PMV:Input ,
-                                                      ecsel-dr-PMV:Output ;
-                                      rdfs:label "Service"@en .
+###  http://www.w3id.org/ecsel-dr-PMV#Process_Service
+ecsel-dr-PMV:Process_Service rdf:type owl:Class ;
+                             rdfs:subClassOf ecsel-dr-PMV:Input ,
+                                             ecsel-dr-PMV:Output ;
+                             rdfs:label "Process Service"@en ;
+                             skos:definition "Process Service is a subclass of Input representing an externally provided capability or action consumed by a process, being transformed alongside other inputs to contribute to a defined process output or outcome." .
 
 
 ###  http://purl.org/dc/dcmitype/Software
@@ -14152,8 +14151,9 @@ terms:Physical_Resource rdf:type owl:Class ;
 
 ###  http://purl.org/ontology/is/core#Info_Service
 <http://purl.org/ontology/is/core#Info_Service> rdf:type owl:Class ;
-                                                rdfs:subClassOf <http://purl.org/dc/dcmitype/Service> ;
-                                                rdfs:label "Info Service"@en .
+                                                rdfs:subClassOf ecsel-dr-PMV:Process_Service ;
+                                                rdfs:label "Info Service"@en ;
+                                                skos:definition "A service whose primary output is information rather than material transformation. It acquires, generates, transforms, stores, retrieves, analyzes, and/or distributes information to support the planning, execution, monitoring, and control of business processes across the value chain. Info_Services may be automated or human-performed and are realized by Functions operating over Information Objects via defined interfaces. Typical resources include IT systems, software applications, data repositories, analytics models, integration platforms, and communication networks; typical constraints include service levels for availability, latency, throughput, accuracy, integrity, confidentiality, and traceability." .
 
 
 ###  http://purl.org/vocommons/voaf#Vocabulary
@@ -20058,7 +20058,8 @@ ecsel-dr-GDM:Activity rdf:type owl:Class ;
 ###  http://www.w3id.org/ecsel-dr-GDM#Activity_Edge
 ecsel-dr-GDM:Activity_Edge rdf:type owl:Class ;
                            rdfs:subClassOf dr:Process_Lobe ;
-                           rdfs:label "Activity Edge"@en .
+                           rdfs:label "Activity Edge"@en ;
+                           skos:definition "represents a directed relationship between two Activity nodes in a process model that defines the control, sequence, or information/data dependency governing movement from a source activity to a target activity. It may carry semantics such as sequence flow, conditional guards or triggers, concurrency (fork/join), data/object passage, timing constraints, and responsibility handoffs, and is used to capture dependencies, precedence, coordination, and information transfer in business and supply chain processes. " .
 
 
 ###  http://www.w3id.org/ecsel-dr-GDM#Add_Disturbance
@@ -20095,7 +20096,8 @@ ecsel-dr-GDM:Aux_Resource rdf:type owl:Class ;
 ###  http://www.w3id.org/ecsel-dr-GDM#Aux_Resource_Requirement
 ecsel-dr-GDM:Aux_Resource_Requirement rdf:type owl:Class ;
                                       rdfs:subClassOf dr:Process_Lobe ;
-                                      rdfs:label "Aux Resource Requirement"@en .
+                                      rdfs:label "Aux Resource Requirement"@en ;
+                                      skos:definition "A formal specification of the secondary or supporting resources that must be available to indirectly facilitate or enhance the execution of a Process or Function within the semiconductor supply chain, stated as constraints on resource type and capability, quantity/capacity, quality/certification, and temporal availability. These requirements define the conditions under which auxiliary resources — which do not directly transform materials into finished products — must be present to ensure the smooth functioning, quality, reliability, and efficiency of primary resources and processes (e.g., tools, fixtures/jigs, auxiliary equipment, utilities such as compressed air or power, software/IT services, safety gear, calibration devices, and qualified personnel/skills)." .
 
 
 ###  http://www.w3id.org/ecsel-dr-GDM#Bill_Of_Materials
@@ -20294,7 +20296,8 @@ ecsel-dr-GDM:Fab rdf:type owl:Class ;
 ###  http://www.w3id.org/ecsel-dr-GDM#Kanban
 ecsel-dr-GDM:Kanban rdf:type owl:Class ;
                     rdfs:subClassOf dr:Process_Lobe ;
-                    rdfs:label "Kanban"@en .
+                    rdfs:label "Kanban"@en ;
+                    skos:definition "is a visual, pull based signaling mechanism used to control workflow and material replenishment in production and supply chain processes. Kanban uses cards, bins, boards, electronic tokens, or other signals to represent work items, inventory status, or authorization to produce or move items. By limiting work in progress (WIP) and triggering replenishment only in response to downstream demand, Kanban supports just in time delivery, reduces excess inventory, exposes bottlenecks, and improves flow and responsiveness. Often Kanban replenishment is reach based. In crisis situation a bullwhip accelerator and the user should change to absolute stock replenishment instead of reach based replenishment when the crisis is confirmed." .
 
 
 ###  http://www.w3id.org/ecsel-dr-GDM#Location
@@ -20345,7 +20348,8 @@ ecsel-dr-GDM:Material rdf:type owl:Class ;
 ###  http://www.w3id.org/ecsel-dr-GDM#Material_Consumption
 ecsel-dr-GDM:Material_Consumption rdf:type owl:Class ;
                                   rdfs:subClassOf dr:Process_Lobe ;
-                                  rdfs:label "Material Consumption"@en .
+                                  rdfs:label "Material Consumption"@en ;
+                                  skos:definition "The quantity and identity of physical materials, components and consumables that a Process withdraws from its inputs and consumes, transforms or incorporates to produce one or more outputs. Material_Consumption records amounts, units and timing, and captures losses, waste, by products and recycled or returned fractions; it links Inputs and Outputs to support planning, costing, traceability, compliance, sustainability and value added chain modeling within the Process lobe." .
 
 
 ###  http://www.w3id.org/ecsel-dr-GDM#Material_Transfer
@@ -20403,7 +20407,8 @@ ecsel-dr-GDM:Recipe rdf:type owl:Class ;
 ###  http://www.w3id.org/ecsel-dr-GDM#Recipe_Equipment_Config
 ecsel-dr-GDM:Recipe_Equipment_Config rdf:type owl:Class ;
                                      rdfs:subClassOf dr:Process_Lobe ;
-                                     rdfs:label "Recipe Equipment Config"@en .
+                                     rdfs:label "Recipe Equipment Config"@en ;
+                                     skos:definition "represents the explicit configuration of one or more pieces of equipment, their settings, interconnections and operational constraints required to execute a production recipe or recipe step within a process. It captures equipment types and capabilities, control and automation parameters, tooling and sensor mappings, capacities and throughput limits, sequencing/transfer relationships, safety and quality constraints, and version/lifecycle information. In semiconductor manufacturing the SPS (single process step) is often only sufficiently defined with the recipe." .
 
 
 ###  http://www.w3id.org/ecsel-dr-GDM#Recipe_Group
@@ -20517,7 +20522,8 @@ ecsel-dr-GDM:Technology rdf:type owl:Class ;
 ###  http://www.w3id.org/ecsel-dr-GDM#Time_Constraint
 ecsel-dr-GDM:Time_Constraint rdf:type owl:Class ;
                              rdfs:subClassOf dr:Process_Lobe ;
-                             rdfs:label "Time Constraint"@en .
+                             rdfs:label "Time Constraint"@en ;
+                             skos:definition "is a condition with in semiconductor route for single process steps this means 2 or more process steps need to be carried out within certain time frame or there has to be a certain time elapsed between 2 single process steps." .
 
 
 ###  http://www.w3id.org/ecsel-dr-GDM#Worker_Qualification
@@ -21752,7 +21758,7 @@ Has the weakest logic and should be used as sparingly as absolutely possible""" 
 
 ###  http://www.w3id.org/ecsel-dr-PMV#Other_Services
 ecsel-dr-PMV:Other_Services rdf:type owl:Class ;
-                            rdfs:subClassOf <http://purl.org/dc/dcmitype/Service> ;
+                            rdfs:subClassOf ecsel-dr-PMV:Process_Service ;
                             rdfs:comment "Collection of other services used as input to a production process or which are created during a production process." ;
                             rdfs:label "Other Services"@en ;
                             skos:altLabel "service"@en .
