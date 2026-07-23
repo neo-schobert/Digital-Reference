@@ -15636,7 +15636,7 @@ ecsel-dr-AT:AS2 rdf:type owl:Class ;
 ecsel-dr-AT:Actuator_Device rdf:type owl:Class ;
                             rdfs:subClassOf ecsel-dr-AT:Wired_Communication_Device ;
                             rdfs:label "Actuator Device"@en ;
-                            skos:definition "Actuator_Device - converts control signals into physical actions which alter power flow, electrical state, or mechanical motion within a power system."@en .
+                            skos:definition "Actuator_Device - converts control signals into physical actions such as mechanical motion or actuation."@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-AT#Apple_Talk
@@ -22247,7 +22247,7 @@ ecsel-dr-Planning:Distributed_Hierarchical_Situation rdf:type owl:Class ;
 ###  http://www.w3id.org/ecsel-dr-Planning#Edge
 ecsel-dr-Planning:Edge rdf:type owl:Class ;
                        rdfs:subClassOf dr:Planning_Lobe ;
-                       rdfs:comment "EDGE in the supply chain refers to the use of edge computing technologies to process data closer to where it is generated—such as warehouses, factories, vehicles or others —rather than relying on centralized cloud systems. By enabling real-time data analysis and decision-making at the \"edge\" of the network, companies can reduce latency, enhance operational responsiveness, and improve visibility across the supply chain." ;
+                       rdfs:comment "An edge is a directed connection between two vertices (DECISION-MAKING UNITS). If a vertex provides an instruction or a reaction to another vertex, then the two vertices are connected by a directed edge; such edges refer to instructions and reactions." ;
                        rdfs:label "Edge" .
 
 
@@ -22537,7 +22537,7 @@ ecsel-dr-Planning:Trigger rdf:type owl:Class ;
 ###  http://www.w3id.org/ecsel-dr-Planning#Vertex
 ecsel-dr-Planning:Vertex rdf:type owl:Class ;
                          rdfs:subClassOf dr:Planning_Lobe ;
-                         rdfs:comment "VERTEX plays a crucial role in the financial and compliance side of the supply chain. Its solutions help businesses calculate, manage, and report indirect taxes (like sales tax, VAT, and GST) at the relevant point in the supply chain, from procurement to distribution." ;
+                         rdfs:comment "A vertex represents a DECISION-MAKING UNIT within a planning situation. The elements of the set of DECISION-MAKING UNITS that constitutes a planning situation are referred to as vertices. Each vertex has a level, and if a vertex provides an instruction or a reaction to another vertex, the two vertices are connected by a directed edge." ;
                          rdfs:label "Vertex" .
 
 
@@ -22955,7 +22955,7 @@ Example: mathematical entities: formal semantics elements, regions within dimens
 <http://www.w3id.org/ecsel-dr-Power-PWR#Blocking_Capability> rdf:type owl:Class ;
                                                              rdfs:subClassOf <http://www.w3id.org/ecsel-dr-Power-PWR#Property> ;
                                                              rdfs:label "Blocking Capability"@en ;
-                                                             skos:definition "Blocking_Capability - is a Property in the Power_Lobe that describes an entity's ability to prevent, stop, or constrain actions, flows, or access in the supply chain (for example: stopping production, rejecting shipments, halting transactions, or restricting access). It covers technical and organizational mechanisms (hard/soft, temporary/conditional) used to enforce such blocks."@en .
+                                                             skos:definition "Blocking_Capability - is a Property in the Power_Lobe that describes an electrical device's ability to prevent or substantially inhibit current conduction in its reverse or off state."@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#Blocking_Voltage
