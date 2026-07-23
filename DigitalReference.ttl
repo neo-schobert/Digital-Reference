@@ -5293,7 +5293,6 @@ ecsel-dr-OOSMP:responsible_for_application_level_3_division rdf:type owl:ObjectP
 
 ###  http://www.w3id.org/ecsel-dr-Organization-ORG#has_certification_level
 <http://www.w3id.org/ecsel-dr-Organization-ORG#has_certification_level> rdf:type owl:ObjectProperty ;
-                                                                        rdfs:subPropertyOf <http://www.w3id.org/ecsel-dr-Organization-ORG#has_contributor> ;
                                                                         owl:inverseOf <http://www.w3id.org/ecsel-dr-Organization-ORG#is_certification_level_of> ;
                                                                         rdf:type owl:FunctionalProperty ;
                                                                         rdfs:domain <http://www.w3id.org/ecsel-dr-Organization-ORG#Company_Project> ;
