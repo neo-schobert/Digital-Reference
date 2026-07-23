@@ -128,8 +128,6 @@ rdfs:comment rdf:type owl:AnnotationProperty ;
              rdfs:range xsd:string .
 
 
-###  http://www.w3.org/2000/01/rdf-schema#description
-rdfs:description rdf:type owl:AnnotationProperty .
 
 
 ###  http://www.w3.org/2000/01/rdf-schema#isDefinedBy
@@ -8054,7 +8052,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/ID> rdf:type owl:DatatypeProperty ;
                                                    rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D3> ;
                                                    rdfs:range xsd:string ;
-                                                   rdfs:description "Contains unique supplier ID of action/root cause. Used for actions/root causes created in supplier's system." ;
+                                                   rdfs:comment "Contains unique supplier ID of action/root cause. Used for actions/root causes created in supplier's system." ;
                                                    rdfs:label "ID" .
 
 
@@ -8062,7 +8060,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/accepted_defective_quantity> rdf:type owl:DatatypeProperty ;
                                                                             rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D2> ;
                                                                             rdfs:range xsd:decimal ;
-                                                                            rdfs:description "Defective Qty received by supplier e.g., 5 out of 10 returned qty are accepted as failed" ;
+                                                                            rdfs:comment "Defective Qty received by supplier e.g., 5 out of 10 returned qty are accepted as failed" ;
                                                                             rdfs:label "Accepted defective quantity" .
 
 
@@ -8072,7 +8070,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                       <http://www.w3id.org/digital-reference/quality/Step_D6> ,
                                                                       <http://www.w3id.org/digital-reference/quality/Step_D7> ;
                                                           rdfs:range xsd:string ;
-                                                          rdfs:description "Contains unique supplier ID of action/root cause. Used for actions/root causes created in supplier's system." ;
+                                                          rdfs:comment "Contains unique supplier ID of action/root cause. Used for actions/root causes created in supplier's system." ;
                                                           rdfs:label "Action ID" .
 
 
@@ -8083,7 +8081,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                                <http://www.w3id.org/digital-reference/quality/Step_D6> ,
                                                                                <http://www.w3id.org/digital-reference/quality/Step_D7> ;
                                                                    rdfs:range xsd:string ;
-                                                                   rdfs:description "Has value 'cancelled' if action or root cause has been cancelled by supplier; otherwise 'valid'." ;
+                                                                   rdfs:comment "Has value 'cancelled' if action or root cause has been cancelled by supplier; otherwise 'valid'." ;
                                                                    rdfs:label "Action status code" .
 
 
@@ -8091,7 +8089,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/actual_finish_date_time> rdf:type owl:DatatypeProperty ;
                                                                         rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D3> ;
                                                                         rdfs:range xsd:dateTime ;
-                                                                        rdfs:description "Date/time the action was actually implemented." ;
+                                                                        rdfs:comment "Date/time the action was actually implemented." ;
                                                                         rdfs:label "Actual finish date time" .
 
 
@@ -8099,7 +8097,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/additional_part_material_number> rdf:type owl:DatatypeProperty ;
                                                                                 rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                                                 rdfs:range xsd:string ;
-                                                                                rdfs:description "BuyerProductItemIdentification, Supplier internal part number" ;
+                                                                                rdfs:comment "BuyerProductItemIdentification, Supplier internal part number" ;
                                                                                 rdfs:label "Additional part material number" .
 
 
@@ -8107,7 +8105,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/assy_batch_ID> rdf:type owl:DatatypeProperty ;
                                                               rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                               rdfs:range xsd:string ;
-                                                              rdfs:description "" ;
+                                                              rdfs:comment "" ;
                                                               rdfs:label "Assy batch ID" .
 
 
@@ -8115,7 +8113,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/attachment_reference> rdf:type owl:DatatypeProperty ;
                                                                      rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                                      rdfs:range xsd:string ;
-                                                                     rdfs:description "Reference to complaint attachments including Pictures, Measurement (Identifier)" ;
+                                                                     rdfs:comment "Reference to complaint attachments including Pictures, Measurement (Identifier)" ;
                                                                      rdfs:label "Attachment_reference" .
 
 
@@ -8123,7 +8121,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/batch_lot_ID> rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "" ;
+                                                             rdfs:comment "" ;
                                                              rdfs:label "Batch lot ID" .
 
 
@@ -8131,7 +8129,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/batch_marked> rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Manufacturing Batch" ;
+                                                             rdfs:comment "Manufacturing Batch" ;
                                                              rdfs:label "Batch marked" .
 
 
@@ -8139,7 +8137,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/closure> rdf:type owl:DatatypeProperty ;
                                                         rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D8> ;
                                                         rdfs:range xsd:string ;
-                                                        rdfs:description "" ;
+                                                        rdfs:comment "" ;
                                                         rdfs:label "Closure" .
 
 
@@ -8147,7 +8145,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/comment_1> rdf:type owl:DatatypeProperty ;
                                                           rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                           rdfs:range xsd:string ;
-                                                          rdfs:description "Comment from customer regarding failure reproduction made by supplier" ;
+                                                          rdfs:comment "Comment from customer regarding failure reproduction made by supplier" ;
                                                           rdfs:label "Comment_1" .
 
 
@@ -8155,7 +8153,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/comment_2> rdf:type owl:DatatypeProperty ;
                                                           rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                           rdfs:range xsd:string ;
-                                                          rdfs:description "Area to provide flexible fields and their values" ;
+                                                          rdfs:comment "Area to provide flexible fields and their values" ;
                                                           rdfs:label "Comment_2" .
 
 
@@ -8163,7 +8161,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/complained_quantity> rdf:type owl:DatatypeProperty ;
                                                                     rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                                     rdfs:range xsd:double ;
-                                                                    rdfs:description "ComplainedQuantity (Same as returned qty initially, may increase)" ;
+                                                                    rdfs:comment "ComplainedQuantity (Same as returned qty initially, may increase)" ;
                                                                     rdfs:label "Complained quantity" .
 
 
@@ -8171,7 +8169,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/complaint_description> rdf:type owl:DatatypeProperty ;
                                                                       rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                                       rdfs:range xsd:string ;
-                                                                      rdfs:description "Description by Customer of the Complaint" ;
+                                                                      rdfs:comment "Description by Customer of the Complaint" ;
                                                                       rdfs:label "Complaint description" .
 
 
@@ -8179,7 +8177,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/complaint_item_ID> rdf:type owl:DatatypeProperty ;
                                                                   rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D2> ;
                                                                   rdfs:range xsd:string ;
-                                                                  rdfs:description "" ;
+                                                                  rdfs:comment "" ;
                                                                   rdfs:label "Complaint item ID" .
 
 
@@ -8187,7 +8185,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/complaint_item_description> rdf:type owl:DatatypeProperty ;
                                                                            rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D2> ;
                                                                            rdfs:range xsd:string ;
-                                                                           rdfs:description "Recurring error information from customer, Our confirmation if recurring should be in D3 e.g., Event Evaluation" ;
+                                                                           rdfs:comment "Recurring error information from customer, Our confirmation if recurring should be in D3 e.g., Event Evaluation" ;
                                                                            rdfs:label "Complaint item description" .
 
 
@@ -8195,7 +8193,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/complaint_item_name> rdf:type owl:DatatypeProperty ;
                                                                     rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D2> ;
                                                                     rdfs:range xsd:string ;
-                                                                    rdfs:description "Problem Description from customer for Line Item" ;
+                                                                    rdfs:comment "Problem Description from customer for Line Item" ;
                                                                     rdfs:label "Complaint item name" .
 
 
@@ -8203,7 +8201,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/complaint_item_status_code> rdf:type owl:DatatypeProperty ;
                                                                            rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D2> ;
                                                                            rdfs:range xsd:string ;
-                                                                           rdfs:description "General acceptance status from supplier" ;
+                                                                           rdfs:comment "General acceptance status from supplier" ;
                                                                            rdfs:label "Complaint item status code" .
 
 
@@ -8211,7 +8209,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/complaint_line_item_ID> rdf:type owl:DatatypeProperty ;
                                                                        rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                                        rdfs:range xsd:string ;
-                                                                       rdfs:description "Complaint ID, unique for customer" ;
+                                                                       rdfs:comment "Complaint ID, unique for customer" ;
                                                                        rdfs:label "Complaint line item ID" .
 
 
@@ -8223,7 +8221,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                        <http://www.w3id.org/digital-reference/quality/Step_D6> ,
                                                                        <http://www.w3id.org/digital-reference/quality/Step_D7> ;
                                                            rdfs:range xsd:string ;
-                                                           rdfs:description "Contact ID" ,
+                                                           rdfs:comment "Contact ID" ,
                                                                             "Duplication of Supplier Contact" ,
                                                                             "Unique ID of contact" ,
                                                                             "Unique ID of contact, equal to SellerParty.Organization.Contact.ID" ;
@@ -8236,7 +8234,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/contact_PhoneNumber> rdf:type owl:DatatypeProperty ;
                                                                     rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                                     rdfs:range xsd:string ;
-                                                                    rdfs:description "" ;
+                                                                    rdfs:comment "" ;
                                                                     rdfs:label "Contact_PhoneNumber" .
 
 
@@ -8244,7 +8242,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/contact_Role> rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "" ,
+                                                             rdfs:comment "" ,
                                                                               "Contact role" ;
                                                              rdfs:label "Contact_Role" .
 
@@ -8253,7 +8251,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/contact_email_address> rdf:type owl:DatatypeProperty ;
                                                                       rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                                       rdfs:range xsd:string ;
-                                                                      rdfs:description "" ,
+                                                                      rdfs:comment "" ,
                                                                                        "Contact_Email_Address" ;
                                                                       rdfs:label "Contact_Email_Address" .
 
@@ -8262,7 +8260,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/contact_name> rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "" ,
+                                                             rdfs:comment "" ,
                                                                               "Contact name" ;
                                                              rdfs:label "Contact_Name" .
 
@@ -8271,7 +8269,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/containment_action> rdf:type owl:DatatypeProperty ;
                                                                    rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D3> ;
                                                                    rdfs:range xsd:string ;
-                                                                   rdfs:description "" ;
+                                                                   rdfs:comment "" ;
                                                                    rdfs:label "Containment action" .
 
 
@@ -8279,7 +8277,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/contribution_degree_numeric> rdf:type owl:DatatypeProperty ;
                                                                             rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D4> ;
                                                                             rdfs:range xsd:decimal ;
-                                                                            rdfs:description "Contribution of root cause to Problem (in % / 100)" ;
+                                                                            rdfs:comment "Contribution of root cause to Problem (in % / 100)" ;
                                                                             rdfs:label "Contribution degree numeric" .
 
 
@@ -8287,7 +8285,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/coreTeam> rdf:type owl:DatatypeProperty ;
                                                          rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D1> ;
                                                          rdfs:range xsd:string ;
-                                                         rdfs:description "Champion / Team leader" ;
+                                                         rdfs:comment "Champion / Team leader" ;
                                                          rdfs:label "CoreTeam" .
 
 
@@ -8295,7 +8293,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/creationDateTime> rdf:type owl:DatatypeProperty ;
                                                                  rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                                  rdfs:range xsd:dateTime ;
-                                                                 rdfs:description "Case registration date" ;
+                                                                 rdfs:comment "Case registration date" ;
                                                                  rdfs:label "CreationDateTime" .
 
 
@@ -8304,7 +8302,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                  rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ,
                                                                              <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                                  rdfs:range xsd:string ;
-                                                                 rdfs:description "Customer City" ;
+                                                                 rdfs:comment "Customer City" ;
                                                                  rdfs:label "CustomerCityName" .
 
 
@@ -8313,7 +8311,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                      rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ,
                                                                                  <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                                      rdfs:range xsd:string ;
-                                                                     rdfs:description "Complaint ID as used by the Customer" ;
+                                                                     rdfs:comment "Complaint ID as used by the Customer" ;
                                                                      rdfs:label "CustomerComplaint_ID" .
 
 
@@ -8321,7 +8319,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customerContact_Email_Address> rdf:type owl:DatatypeProperty ;
                                                                               rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                                               rdfs:range xsd:string ;
-                                                                              rdfs:description "Customer Contact Email Address" ;
+                                                                              rdfs:comment "Customer Contact Email Address" ;
                                                                               rdfs:label "CustomerContact_Email_Address" .
 
 
@@ -8329,7 +8327,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customerContact_ID> rdf:type owl:DatatypeProperty ;
                                                                    rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                                    rdfs:range xsd:string ;
-                                                                   rdfs:description "Customer Contact ID" ;
+                                                                   rdfs:comment "Customer Contact ID" ;
                                                                    rdfs:label "CustomerContact_ID" .
 
 
@@ -8337,7 +8335,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customerContact_Name> rdf:type owl:DatatypeProperty ;
                                                                      rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                                      rdfs:range xsd:string ;
-                                                                     rdfs:description "Customer Contact Name" ;
+                                                                     rdfs:comment "Customer Contact Name" ;
                                                                      rdfs:label "CustomerContact_Name" .
 
 
@@ -8345,7 +8343,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customerContact_PhoneNumber> rdf:type owl:DatatypeProperty ;
                                                                             rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                                             rdfs:range xsd:string ;
-                                                                            rdfs:description "Customer Contact Phone Number" ;
+                                                                            rdfs:comment "Customer Contact Phone Number" ;
                                                                             rdfs:label "CustomerContact_PhoneNumber" .
 
 
@@ -8353,7 +8351,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customerContact_Role> rdf:type owl:DatatypeProperty ;
                                                                      rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                                      rdfs:range xsd:string ;
-                                                                     rdfs:description "Customer Contact Role" ;
+                                                                     rdfs:comment "Customer Contact Role" ;
                                                                      rdfs:label "CustomerContact_Role" .
 
 
@@ -8361,7 +8359,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customerCountry> rdf:type owl:DatatypeProperty ;
                                                                 rdfs:domain <http://www.w3id.org/digital-reference/quality/Shipment> ;
                                                                 rdfs:range xsd:string ;
-                                                                rdfs:description "Customer Country" ;
+                                                                rdfs:comment "Customer Country" ;
                                                                 rdfs:label "CustomerCountry" .
 
 
@@ -8369,7 +8367,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customerGlobal_ID> rdf:type owl:DatatypeProperty ;
                                                                   rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                                   rdfs:range xsd:string ;
-                                                                  rdfs:description "Customer Number" ;
+                                                                  rdfs:comment "Customer Number" ;
                                                                   rdfs:label "CustomerGlobal_ID" .
 
 
@@ -8377,7 +8375,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customerGlobal_Name> rdf:type owl:DatatypeProperty ;
                                                                     rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                                     rdfs:range xsd:string ;
-                                                                    rdfs:description "Customer Name" ;
+                                                                    rdfs:comment "Customer Name" ;
                                                                     rdfs:label "CustomerGlobal_Name" .
 
 
@@ -8385,7 +8383,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customerID> rdf:type owl:DatatypeProperty ;
                                                            rdfs:domain <http://www.w3id.org/digital-reference/quality/Shipment> ;
                                                            rdfs:range xsd:string ;
-                                                           rdfs:description "Customer ID" ;
+                                                           rdfs:comment "Customer ID" ;
                                                            rdfs:label "CustomerID" .
 
 
@@ -8393,7 +8391,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customerLocationName> rdf:type owl:DatatypeProperty ;
                                                                      rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                                      rdfs:range xsd:string ;
-                                                                     rdfs:description "Customer Country" ;
+                                                                     rdfs:comment "Customer Country" ;
                                                                      rdfs:label "CustomerLocationName" .
 
 
@@ -8402,7 +8400,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                     rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ,
                                                                                 <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                                     rdfs:range xsd:string ;
-                                                                    rdfs:description "" ,
+                                                                    rdfs:comment "" ,
                                                                                      "Customer Location ID" ;
                                                                     rdfs:label "CustomerLocation_ID" .
 
@@ -8412,7 +8410,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ,
                                                                          <http://www.w3id.org/digital-reference/quality/Shipment> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Customer Name" ;
+                                                             rdfs:comment "Customer Name" ;
                                                              rdfs:label "CustomerName" .
 
 
@@ -8420,7 +8418,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customerPartNumber> rdf:type owl:DatatypeProperty ;
                                                                    rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                                    rdfs:range xsd:string ;
-                                                                   rdfs:description "Customer's part/material number" ;
+                                                                   rdfs:comment "Customer's part/material number" ;
                                                                    rdfs:label "CustomerPartNumber" .
 
 
@@ -8428,7 +8426,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customer_ID> rdf:type owl:DatatypeProperty ;
                                                             rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                             rdfs:range xsd:string ;
-                                                            rdfs:description "Customer ID" ;
+                                                            rdfs:comment "Customer ID" ;
                                                             rdfs:label "CustomerGlobal_ID" .
 
 
@@ -8436,7 +8434,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customer_address> rdf:type owl:DatatypeProperty ;
                                                                  rdfs:domain <http://www.w3id.org/digital-reference/quality/Shipment> ;
                                                                  rdfs:range xsd:string ;
-                                                                 rdfs:description "Customer Adress" ;
+                                                                 rdfs:comment "Customer Adress" ;
                                                                  rdfs:label "Customer address" .
 
 
@@ -8444,7 +8442,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customer_application_ID> rdf:type owl:DatatypeProperty ;
                                                                         rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                                         rdfs:range xsd:string ;
-                                                                        rdfs:description "Customer Application ID" ;
+                                                                        rdfs:comment "Customer Application ID" ;
                                                                         rdfs:label "Customer application ID" .
 
 
@@ -8453,7 +8451,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                                  rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ,
                                                                                              <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                                                  rdfs:range xsd:string ;
-                                                                                 rdfs:description "Customer Application Description" ,
+                                                                                 rdfs:comment "Customer Application Description" ,
                                                                                                   "Free Text" ;
                                                                                  rdfs:label "Customer application description" .
 
@@ -8462,7 +8460,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customer_city> rdf:type owl:DatatypeProperty ;
                                                               rdfs:domain <http://www.w3id.org/digital-reference/quality/Shipment> ;
                                                               rdfs:range xsd:string ;
-                                                              rdfs:description "Customer City" ;
+                                                              rdfs:comment "Customer City" ;
                                                               rdfs:label "Customer city" .
 
 
@@ -8470,7 +8468,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/customer_location_name> rdf:type owl:DatatypeProperty ;
                                                                        rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                                        rdfs:range xsd:string ;
-                                                                       rdfs:description "Customer Country" ;
+                                                                       rdfs:comment "Customer Country" ;
                                                                        rdfs:label "Customer location name" .
 
 
@@ -8478,7 +8476,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/date> rdf:type owl:DatatypeProperty ;
                                                      rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                      rdfs:range xsd:dateTime ;
-                                                     rdfs:description "Date of Start" ;
+                                                     rdfs:comment "Date of Start" ;
                                                      rdfs:label "Date" .
 
 
@@ -8486,7 +8484,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/dateCode> rdf:type owl:DatatypeProperty ;
                                                          rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                          rdfs:range xsd:string ;
-                                                         rdfs:description "" ;
+                                                         rdfs:comment "" ;
                                                          rdfs:label "DateCode" .
 
 
@@ -8494,7 +8492,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/defectQuantity> rdf:type owl:DatatypeProperty ;
                                                                rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                                rdfs:range xsd:double ;
-                                                               rdfs:description "Complaint quantity (number of defective parts)" ;
+                                                               rdfs:comment "Complaint quantity (number of defective parts)" ;
                                                                rdfs:label "DefectQuantity" .
 
 
@@ -8502,7 +8500,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/deliveryDate> rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D3> ;
                                                              rdfs:range xsd:dateTime ;
-                                                             rdfs:description "" ;
+                                                             rdfs:comment "" ;
                                                              rdfs:label "DeliveryDate" .
 
 
@@ -8510,7 +8508,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/deliveryNoteID> rdf:type owl:DatatypeProperty ;
                                                                rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D3> ;
                                                                rdfs:range xsd:string ;
-                                                               rdfs:description "" ;
+                                                               rdfs:comment "" ;
                                                                rdfs:label "DeliveryNoteID" .
 
 
@@ -8518,7 +8516,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/deliveryReference> rdf:type owl:DatatypeProperty ;
                                                                   rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D3> ;
                                                                   rdfs:range xsd:string ;
-                                                                  rdfs:description "Information by when the first “clean”/correct parts are delivered to the customer, after implementing of containment action(s)." ;
+                                                                  rdfs:comment "Information by when the first “clean”/correct parts are delivered to the customer, after implementing of containment action(s)." ;
                                                                   rdfs:label "DeliveryReference" .
 
 
@@ -8526,7 +8524,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/deliveryTypeCode> rdf:type owl:DatatypeProperty ;
                                                                  rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D3> ;
                                                                  rdfs:range xsd:string ;
-                                                                 rdfs:description "" ;
+                                                                 rdfs:comment "" ;
                                                                  rdfs:label "DeliveryTypeCode" .
 
 
@@ -8538,7 +8536,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                         <http://www.w3id.org/digital-reference/quality/Step_D6> ,
                                                                         <http://www.w3id.org/digital-reference/quality/Step_D7> ;
                                                             rdfs:range xsd:string ;
-                                                            rdfs:description "Description of action" ,
+                                                            rdfs:comment "Description of action" ,
                                                                              "Description of root cause" ;
                                                             rdfs:label "Description" .
 
@@ -8547,7 +8545,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/documentStatusCode> rdf:type owl:DatatypeProperty ;
                                                                    rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                                    rdfs:range xsd:string ;
-                                                                   rdfs:description "Fixed value set, eg 'In Progress', 'Final'" ;
+                                                                   rdfs:comment "Fixed value set, eg 'In Progress', 'Final'" ;
                                                                    rdfs:label "DocumentStatusCode" .
 
 
@@ -8555,7 +8553,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/dueDateTime> rdf:type owl:DatatypeProperty ;
                                                             rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D3> ;
                                                             rdfs:range xsd:dateTime ;
-                                                            rdfs:description "By when the action is planned to be implemented by the supplier." ;
+                                                            rdfs:comment "By when the action is planned to be implemented by the supplier." ;
                                                             rdfs:label "DueDateTime" .
 
 
@@ -8565,7 +8563,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                                        <http://www.w3id.org/digital-reference/quality/Step_D5> ,
                                                                                        <http://www.w3id.org/digital-reference/quality/Step_D6> ;
                                                                            rdfs:range xsd:decimal ;
-                                                                           rdfs:description "Expected effectiveness of action (% / 100)" ,
+                                                                           rdfs:comment "Expected effectiveness of action (% / 100)" ,
                                                                                             "Measured effectiveness of action (% / 100). If element provided, ValidationDescription and ValidationDateTime also need to be provided." ;
                                                                            rdfs:label "EffectivenessDegreeNumeric" .
 
@@ -8574,7 +8572,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/effectivenessDescription> rdf:type owl:DatatypeProperty ;
                                                                          rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D3> ;
                                                                          rdfs:range xsd:string ;
-                                                                         rdfs:description "Description of the validation of the effect of the action" ;
+                                                                         rdfs:comment "Description of the validation of the effect of the action" ;
                                                                          rdfs:label "EffectivenessDescription" .
 
 
@@ -8582,7 +8580,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/endDateTime> rdf:type owl:DatatypeProperty ;
                                                             rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D3> ;
                                                             rdfs:range xsd:dateTime ;
-                                                            rdfs:description "" ;
+                                                            rdfs:comment "" ;
                                                             rdfs:label "EndDateTime" .
 
 
@@ -8590,7 +8588,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/endDateTimeDelivery> rdf:type owl:DatatypeProperty ;
                                                                     rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D6> ;
                                                                     rdfs:range xsd:dateTime ;
-                                                                    rdfs:description "End date of affected delivery" ;
+                                                                    rdfs:comment "End date of affected delivery" ;
                                                                     rdfs:label "EndDateTimeDelivery" .
 
 
@@ -8598,7 +8596,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/endDateTimeProduction> rdf:type owl:DatatypeProperty ;
                                                                       rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D6> ;
                                                                       rdfs:range xsd:dateTime ;
-                                                                      rdfs:description "End date of affected production" ;
+                                                                      rdfs:comment "End date of affected production" ;
                                                                       rdfs:label "EndDateTimeProduction" .
 
 
@@ -8606,7 +8604,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/estimatedEndDateTime> rdf:type owl:DatatypeProperty ;
                                                                      rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D3> ;
                                                                      rdfs:range xsd:dateTime ;
-                                                                     rdfs:description "Same value as element DueDateTime" ;
+                                                                     rdfs:comment "Same value as element DueDateTime" ;
                                                                      rdfs:label "EstimatedEndDateTime" .
 
 
@@ -8614,7 +8612,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/failurePreAnalysis> rdf:type owl:DatatypeProperty ;
                                                                    rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                                    rdfs:range xsd:string ;
-                                                                   rdfs:description "1st verification result by supplier" ;
+                                                                   rdfs:comment "1st verification result by supplier" ;
                                                                    rdfs:label "FailurePreAnalysis" .
 
 
@@ -8624,7 +8622,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                                  <http://www.w3id.org/digital-reference/quality/Step_D7> ,
                                                                                  <http://www.w3id.org/digital-reference/quality/Step_D8> ;
                                                                      rdfs:range xsd:dateTime ;
-                                                                     rdfs:description "Date/time the action was actually implemented." ,
+                                                                     rdfs:comment "Date/time the action was actually implemented." ,
                                                                                       "Timestamp of actual closure of 8D report" ;
                                                                      rdfs:label "FinalizedEndDateTime" .
 
@@ -8633,7 +8631,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/generalResponse> rdf:type owl:DatatypeProperty ;
                                                                 rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D2> ;
                                                                 rdfs:range xsd:string ;
-                                                                rdfs:description "Additional Information" ;
+                                                                rdfs:comment "Additional Information" ;
                                                                 rdfs:label "GeneralResponse" .
 
 
@@ -8641,7 +8639,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/iD> rdf:type owl:DatatypeProperty ;
                                                    rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D4> ;
                                                    rdfs:range xsd:string ;
-                                                   rdfs:description "Contains unique supplier ID of action/root cause. Used for actions/root causes created in supplier's system." ;
+                                                   rdfs:comment "Contains unique supplier ID of action/root cause. Used for actions/root causes created in supplier's system." ;
                                                    rdfs:label "ID" .
 
 
@@ -8649,7 +8647,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/id> rdf:type owl:DatatypeProperty ;
                                                    rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D6> ;
                                                    rdfs:range xsd:string ;
-                                                   rdfs:description "Contains unique ID of specific risk assessment" ;
+                                                   rdfs:comment "Contains unique ID of specific risk assessment" ;
                                                    rdfs:label "ID" .
 
 
@@ -8658,7 +8656,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                               rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ,
                                                                           <http://www.w3id.org/digital-reference/quality/Step_D6> ;
                                                               rdfs:range xsd:dateTime ;
-                                                              rdfs:description "Date Time of each response including Acceptance of FA support, Interim report, 8D" ,
+                                                              rdfs:comment "Date Time of each response including Acceptance of FA support, Interim report, 8D" ,
                                                                                "Date when the first “clean”/correct parts are delivered to the customer." ;
                                                               rdfs:label "IssueDateTime" .
 
@@ -8667,7 +8665,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/keyContactReference> rdf:type owl:DatatypeProperty ;
                                                                     rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D1> ;
                                                                     rdfs:range xsd:string ;
-                                                                    rdfs:description "Duplication of Supplier Contact" ;
+                                                                    rdfs:comment "Duplication of Supplier Contact" ;
                                                                     rdfs:label "KeyContactReference" .
 
 
@@ -8675,7 +8673,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/lineItemID> rdf:type owl:DatatypeProperty ;
                                                            rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D3> ;
                                                            rdfs:range xsd:string ;
-                                                           rdfs:description "" ;
+                                                           rdfs:comment "" ;
                                                            rdfs:label "LineItemID" .
 
 
@@ -8683,7 +8681,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/manufacturingDateCode> rdf:type owl:DatatypeProperty ;
                                                                       rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D2> ;
                                                                       rdfs:range xsd:dateTime ;
-                                                                      rdfs:description "Datecode - e.g., YYWW" ;
+                                                                      rdfs:comment "Datecode - e.g., YYWW" ;
                                                                       rdfs:label "ManufacturingDateCode" .
 
 
@@ -8691,7 +8689,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/manufacturingLocation> rdf:type owl:DatatypeProperty ;
                                                                       rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                                       rdfs:range xsd:string ;
-                                                                      rdfs:description "" ;
+                                                                      rdfs:comment "" ;
                                                                       rdfs:label "ManufacturingLocation" .
 
 
@@ -8699,7 +8697,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/manufacturingLocationName> rdf:type owl:DatatypeProperty ;
                                                                           rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                                           rdfs:range xsd:string ;
-                                                                          rdfs:description "" ;
+                                                                          rdfs:comment "" ;
                                                                           rdfs:label "ManufacturingLocationName" .
 
 
@@ -8708,7 +8706,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Product_Instance> ,
                                                                          <http://www.w3id.org/digital-reference/quality/Product_Marking> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Marking Line A details, Often the marking Line A identifies the Type as marked" ;
+                                                             rdfs:comment "Marking Line A details, Often the marking Line A identifies the Type as marked" ;
                                                              rdfs:label "MarkingLineA" .
 
 
@@ -8717,7 +8715,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Product_Instance> ,
                                                                          <http://www.w3id.org/digital-reference/quality/Product_Marking> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Marking Line B details, Often the marking Line B identifies the Batch / Lot as marked" ;
+                                                             rdfs:comment "Marking Line B details, Often the marking Line B identifies the Batch / Lot as marked" ;
                                                              rdfs:label "MarkingLineB" .
 
 
@@ -8726,7 +8724,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Product_Instance> ,
                                                                          <http://www.w3id.org/digital-reference/quality/Product_Marking> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Marking Line C" ;
+                                                             rdfs:comment "Marking Line C" ;
                                                              rdfs:label "MarkingLineC" .
 
 
@@ -8735,7 +8733,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Product_Instance> ,
                                                                          <http://www.w3id.org/digital-reference/quality/Product_Marking> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Marking Line D" ;
+                                                             rdfs:comment "Marking Line D" ;
                                                              rdfs:label "MarkingLineD" .
 
 
@@ -8743,7 +8741,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/markingLineDetails> rdf:type owl:DatatypeProperty ;
                                                                    rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                                    rdfs:range xsd:string ;
-                                                                   rdfs:description "Marking Lines from the Device which was returned, All marking lines e.g., Product Name, Date Code, Batch ID" ;
+                                                                   rdfs:comment "Marking Lines from the Device which was returned, All marking lines e.g., Product Name, Date Code, Batch ID" ;
                                                                    rdfs:label "MarkingLineDetails" .
 
 
@@ -8752,7 +8750,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Product_Instance> ,
                                                                          <http://www.w3id.org/digital-reference/quality/Product_Marking> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Marking Line E" ;
+                                                             rdfs:comment "Marking Line E" ;
                                                              rdfs:label "MarkingLineE" .
 
 
@@ -8761,7 +8759,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Product_Instance> ,
                                                                          <http://www.w3id.org/digital-reference/quality/Product_Marking> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Marking Line F" ;
+                                                             rdfs:comment "Marking Line F" ;
                                                              rdfs:label "MarkingLineF" .
 
 
@@ -8770,7 +8768,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Product_Instance> ,
                                                                          <http://www.w3id.org/digital-reference/quality/Product_Marking> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Marking Line G" ;
+                                                             rdfs:comment "Marking Line G" ;
                                                              rdfs:label "MarkingLineG" .
 
 
@@ -8779,7 +8777,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Product_Instance> ,
                                                                          <http://www.w3id.org/digital-reference/quality/Product_Marking> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Marking Line H" ;
+                                                             rdfs:comment "Marking Line H" ;
                                                              rdfs:label "MarkingLineH" .
 
 
@@ -8788,7 +8786,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Product_Instance> ,
                                                                          <http://www.w3id.org/digital-reference/quality/Product_Marking> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Marking Line I" ;
+                                                             rdfs:comment "Marking Line I" ;
                                                              rdfs:label "MarkingLineI" .
 
 
@@ -8797,7 +8795,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Product_Instance> ,
                                                                          <http://www.w3id.org/digital-reference/quality/Product_Marking> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Marking Line J" ;
+                                                             rdfs:comment "Marking Line J" ;
                                                              rdfs:label "MarkingLineJ" .
 
 
@@ -8806,7 +8804,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Product_Instance> ,
                                                                          <http://www.w3id.org/digital-reference/quality/Product_Marking> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Marking Line K" ;
+                                                             rdfs:comment "Marking Line K" ;
                                                              rdfs:label "MarkingLineK" .
 
 
@@ -8814,7 +8812,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/masterCartonID> rdf:type owl:DatatypeProperty ;
                                                                rdfs:domain <http://www.w3id.org/digital-reference/quality/Shipment> ;
                                                                rdfs:range xsd:string ;
-                                                               rdfs:description "Ship Box identifier" ;
+                                                               rdfs:comment "Ship Box identifier" ;
                                                                rdfs:label "MasterCartonID" .
 
 
@@ -8822,7 +8820,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/nonconformanceReportNumber> rdf:type owl:DatatypeProperty ;
                                                                            rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                                            rdfs:range xsd:string ;
-                                                                           rdfs:description "Non-conformance report number" ;
+                                                                           rdfs:comment "Non-conformance report number" ;
                                                                            rdfs:label "NonconformanceReportNumber" .
 
 
@@ -8830,7 +8828,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/orderReference> rdf:type owl:DatatypeProperty ;
                                                                rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                                rdfs:range xsd:string ;
-                                                               rdfs:description "Order information for the delivery of these goods to the Customer" ;
+                                                               rdfs:comment "Order information for the delivery of these goods to the Customer" ;
                                                                rdfs:label "OrderReference" .
 
 
@@ -8841,7 +8839,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                     <http://www.w3id.org/digital-reference/quality/Step_D6> ,
                                                                     <http://www.w3id.org/digital-reference/quality/Step_D7> ;
                                                         rdfs:range xsd:string ;
-                                                        rdfs:description "" ,
+                                                        rdfs:comment "" ,
                                                                          "Duplication of Supplier Contact" ,
                                                                          "Ignored by Problem Solver; can be set equal to Header.SellerParty.ID" ;
                                                         rdfs:label "PartyID" .
@@ -8851,7 +8849,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/plannedCorrectiveAction> rdf:type owl:DatatypeProperty ;
                                                                         rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D5> ;
                                                                         rdfs:range xsd:string ;
-                                                                        rdfs:description "" ;
+                                                                        rdfs:comment "" ;
                                                                         rdfs:label "PlannedCorrectiveAction" .
 
 
@@ -8861,7 +8859,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                                <http://www.w3id.org/digital-reference/quality/Step_D6> ,
                                                                                <http://www.w3id.org/digital-reference/quality/Step_D7> ;
                                                                    rdfs:range xsd:dateTime ;
-                                                                   rdfs:description "By when the action is planned to be implemented by the supplier." ;
+                                                                   rdfs:comment "By when the action is planned to be implemented by the supplier." ;
                                                                    rdfs:label "PlannedEndDateTime" .
 
 
@@ -8869,7 +8867,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/preventRecurrenceCorrectiveAction> rdf:type owl:DatatypeProperty ;
                                                                                   rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D7> ;
                                                                                   rdfs:range xsd:string ;
-                                                                                  rdfs:description "" ;
+                                                                                  rdfs:comment "" ;
                                                                                   rdfs:label "PreventRecurrenceCorrectiveAction" .
 
 
@@ -8877,7 +8875,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/problemProfileDescription> rdf:type owl:DatatypeProperty ;
                                                                           rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D2> ;
                                                                           rdfs:range xsd:string ;
-                                                                          rdfs:description "Problem description by the supplier, summary of FA" ;
+                                                                          rdfs:comment "Problem description by the supplier, summary of FA" ;
                                                                           rdfs:label "ProblemProfileDescription" .
 
 
@@ -8885,7 +8883,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/productCode> rdf:type owl:DatatypeProperty ;
                                                             rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                             rdfs:range xsd:string ;
-                                                            rdfs:description "Product Identifier" ;
+                                                            rdfs:comment "Product Identifier" ;
                                                             rdfs:label "ProductCode" .
 
 
@@ -8893,7 +8891,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/productIdentifier> rdf:type owl:DatatypeProperty ;
                                                                   rdfs:domain <http://www.w3id.org/digital-reference/quality/Product_Instance> ;
                                                                   rdfs:range xsd:string ;
-                                                                  rdfs:description "" ;
+                                                                  rdfs:comment "" ;
                                                                   rdfs:label "ProductIdentifier" .
 
 
@@ -8901,7 +8899,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/productType> rdf:type owl:DatatypeProperty ;
                                                             rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                             rdfs:range xsd:string ;
-                                                            rdfs:description "Product Type" ;
+                                                            rdfs:comment "Product Type" ;
                                                             rdfs:label "ProductType" .
 
 
@@ -8909,7 +8907,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/qty> rdf:type owl:DatatypeProperty ;
                                                     rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                     rdfs:range xsd:double ;
-                                                    rdfs:description "" ;
+                                                    rdfs:comment "" ;
                                                     rdfs:label "Qty" .
 
 
@@ -8917,7 +8915,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/qtyWafersTested> rdf:type owl:DatatypeProperty ;
                                                                 rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                                 rdfs:range xsd:double ;
-                                                                rdfs:description "" ;
+                                                                rdfs:comment "" ;
                                                                 rdfs:label "QtyWafersTested" .
 
 
@@ -8925,7 +8923,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/referenceData> rdf:type owl:DatatypeProperty ;
                                                               rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                               rdfs:range xsd:string ;
-                                                              rdfs:description "General Reference Data, eg can be used for the Customer Purchase order" ;
+                                                              rdfs:comment "General Reference Data, eg can be used for the Customer Purchase order" ;
                                                               rdfs:label "ReferenceData" .
 
 
@@ -8934,7 +8932,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                        rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ,
                                                                    <http://www.w3id.org/digital-reference/quality/Step_D2> ;
                                                        rdfs:range xsd:string ;
-                                                       rdfs:description "Comment from customer regarding status change" ,
+                                                       rdfs:comment "Comment from customer regarding status change" ,
                                                                         "reason" ;
                                                        rdfs:label "Remark" .
 
@@ -8943,7 +8941,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/requestedResponseType> rdf:type owl:DatatypeProperty ;
                                                                       rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                                       rdfs:range xsd:string ;
-                                                                      rdfs:description "From Customer, value set to be agreed" ;
+                                                                      rdfs:comment "From Customer, value set to be agreed" ;
                                                                       rdfs:label "RequestedResponseType" .
 
 
@@ -8952,7 +8950,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                             rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D6> ,
                                                                                         <http://www.w3id.org/digital-reference/quality/Step_D7> ;
                                                                             rdfs:range xsd:string ;
-                                                                            rdfs:description "" ;
+                                                                            rdfs:comment "" ;
                                                                             rdfs:label "ResponsibleContactReference" .
 
 
@@ -8960,7 +8958,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/returnDeliveryReferenceDocument> rdf:type owl:DatatypeProperty ;
                                                                                 rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D6> ;
                                                                                 rdfs:range xsd:string ;
-                                                                                rdfs:description "Information by when the first “clean”/correct parts are delivered to the customer, after implementing of implemented corrective action(s)." ;
+                                                                                rdfs:comment "Information by when the first “clean”/correct parts are delivered to the customer, after implementing of implemented corrective action(s)." ;
                                                                                 rdfs:label "ReturnDeliveryReferenceDocument" .
 
 
@@ -8968,7 +8966,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/returnedQuantity> rdf:type owl:DatatypeProperty ;
                                                                  rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                                  rdfs:range xsd:double ;
-                                                                 rdfs:description "Physical Quantity returned to the supplier for investigation" ;
+                                                                 rdfs:comment "Physical Quantity returned to the supplier for investigation" ;
                                                                  rdfs:label "ReturnedQuantity" .
 
 
@@ -8977,7 +8975,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                  rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ,
                                                                              <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                                  rdfs:range xsd:dateTime ;
-                                                                 rdfs:description "Date when registered complaint case modified" ,
+                                                                 rdfs:comment "Date when registered complaint case modified" ,
                                                                                   "New report revision submission date" ;
                                                                  rdfs:label "RevisionDateTime" .
 
@@ -8986,7 +8984,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/riskAssessment> rdf:type owl:DatatypeProperty ;
                                                                rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D6> ;
                                                                rdfs:range xsd:string ;
-                                                               rdfs:description "Information on the risk assessment done by supplier" ;
+                                                               rdfs:comment "Information on the risk assessment done by supplier" ;
                                                                rdfs:label "RiskAssessment" .
 
 
@@ -8995,7 +8993,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                 rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ,
                                                                             <http://www.w3id.org/digital-reference/quality/Step_D6> ;
                                                                 rdfs:range xsd:string ;
-                                                                rdfs:description "Description of the risk" ,
+                                                                rdfs:comment "Description of the risk" ,
                                                                                  "Inputs From customer" ;
                                                                 rdfs:label "RiskDescription" .
 
@@ -9004,7 +9002,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/rootCause> rdf:type owl:DatatypeProperty ;
                                                           rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D4> ;
                                                           rdfs:range xsd:string ;
-                                                          rdfs:description "" ;
+                                                          rdfs:comment "" ;
                                                           rdfs:label "RootCause" .
 
 
@@ -9012,7 +9010,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/rootCauseAnalysis> rdf:type owl:DatatypeProperty ;
                                                                   rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D4> ;
                                                                   rdfs:range xsd:string ;
-                                                                  rdfs:description "" ;
+                                                                  rdfs:comment "" ;
                                                                   rdfs:label "RootCauseAnalysis" .
 
 
@@ -9020,7 +9018,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/rootCauseStatusCode> rdf:type owl:DatatypeProperty ;
                                                                     rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D4> ;
                                                                     rdfs:range xsd:string ;
-                                                                    rdfs:description "Has value 'cancelled' if action or root cause has been cancelled by supplier; otherwise 'valid'." ;
+                                                                    rdfs:comment "Has value 'cancelled' if action or root cause has been cancelled by supplier; otherwise 'valid'." ;
                                                                     rdfs:label "RootCauseStatusCode" .
 
 
@@ -9028,7 +9026,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/sapOrderNumber> rdf:type owl:DatatypeProperty ;
                                                                rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                                rdfs:range xsd:string ;
-                                                               rdfs:description "SAP Order Number" ;
+                                                               rdfs:comment "SAP Order Number" ;
                                                                rdfs:label "SAPOrderNumber" .
 
 
@@ -9036,7 +9034,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/sellerProcessStatusCode> rdf:type owl:DatatypeProperty ;
                                                                         rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D2> ;
                                                                         rdfs:range xsd:string ;
-                                                                        rdfs:description "8D status" ;
+                                                                        rdfs:comment "8D status" ;
                                                                         rdfs:label "SellerProcessStatusCode" .
 
 
@@ -9044,7 +9042,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/shipToCountry> rdf:type owl:DatatypeProperty ;
                                                               rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                               rdfs:range xsd:string ;
-                                                              rdfs:description "" ;
+                                                              rdfs:comment "" ;
                                                               rdfs:label "ShipToCountry" .
 
 
@@ -9052,7 +9050,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/shipToCustID> rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Ship To Custoner ID as used by the supplier" ;
+                                                             rdfs:comment "Ship To Custoner ID as used by the supplier" ;
                                                              rdfs:label "ShipToCustID" .
 
 
@@ -9060,7 +9058,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/shipToCustLongName> rdf:type owl:DatatypeProperty ;
                                                                    rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                                    rdfs:range xsd:string ;
-                                                                   rdfs:description "" ;
+                                                                   rdfs:comment "" ;
                                                                    rdfs:label "ShipToCustLongName" .
 
 
@@ -9068,7 +9066,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/shipToCustShortName> rdf:type owl:DatatypeProperty ;
                                                                     rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                                     rdfs:range xsd:string ;
-                                                                    rdfs:description "" ;
+                                                                    rdfs:comment "" ;
                                                                     rdfs:label "ShipToCustShortName" .
 
 
@@ -9076,7 +9074,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/shipToRegion> rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "" ;
+                                                             rdfs:comment "" ;
                                                              rdfs:label "ShipToRegion" .
 
 
@@ -9084,7 +9082,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/shipment> rdf:type owl:DatatypeProperty ;
                                                          rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> ;
                                                          rdfs:range xsd:string ;
-                                                         rdfs:description "Reference to the Shipment_ID for the return of the 'defected goods'" ;
+                                                         rdfs:comment "Reference to the Shipment_ID for the return of the 'defected goods'" ;
                                                          rdfs:label "Shipment" .
 
 
@@ -9092,7 +9090,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/shipmentID> rdf:type owl:DatatypeProperty ;
                                                            rdfs:domain <http://www.w3id.org/digital-reference/quality/Shipment> ;
                                                            rdfs:range xsd:string ;
-                                                           rdfs:description "Shipment ID" ;
+                                                           rdfs:comment "Shipment ID" ;
                                                            rdfs:label "ShipmentID" .
 
 
@@ -9100,7 +9098,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/stage> rdf:type owl:DatatypeProperty ;
                                                       rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                       rdfs:range xsd:string ;
-                                                      rdfs:description "Manufacturing Stage e.g., Diffusion, Assembly" ;
+                                                      rdfs:comment "Manufacturing Stage e.g., Diffusion, Assembly" ;
                                                       rdfs:label "Stage" .
 
 
@@ -9111,7 +9109,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                           <http://www.w3id.org/digital-reference/quality/Step_D6> ,
                                                                           <http://www.w3id.org/digital-reference/quality/Step_D7> ;
                                                               rdfs:range xsd:dateTime ;
-                                                              rdfs:description "" ,
+                                                              rdfs:comment "" ,
                                                                                "Date when the first “clean”/correct parts are delivered to the customer." ,
                                                                                "Physical Part arrived and investigation start date" ;
                                                               rdfs:label "StartDateTime" .
@@ -9121,7 +9119,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/startDateTimeDelivery> rdf:type owl:DatatypeProperty ;
                                                                       rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D6> ;
                                                                       rdfs:range xsd:dateTime ;
-                                                                      rdfs:description "Start date of affected delivery" ;
+                                                                      rdfs:comment "Start date of affected delivery" ;
                                                                       rdfs:label "StartDateTimeDelivery" .
 
 
@@ -9129,7 +9127,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/startDateTimeProduction> rdf:type owl:DatatypeProperty ;
                                                                         rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D6> ;
                                                                         rdfs:range xsd:dateTime ;
-                                                                        rdfs:description "Start date of affected production" ;
+                                                                        rdfs:comment "Start date of affected production" ;
                                                                         rdfs:label "StartDateTimeProduction" .
 
 
@@ -9138,7 +9136,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                      rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ,
                                                                                  <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                                      rdfs:range xsd:string ;
-                                                                     rdfs:description "Complaint ID as used by the supplier" ;
+                                                                     rdfs:comment "Complaint ID as used by the supplier" ;
                                                                      rdfs:label "SupplierComplaint_ID" .
 
 
@@ -9146,7 +9144,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/supplierContact_Email_Address> rdf:type owl:DatatypeProperty ;
                                                                               rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                                               rdfs:range xsd:string ;
-                                                                              rdfs:description "Contact Email Address" ;
+                                                                              rdfs:comment "Contact Email Address" ;
                                                                               rdfs:label "SupplierContact_Email_Address" .
 
 
@@ -9154,7 +9152,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/supplierContact_ID> rdf:type owl:DatatypeProperty ;
                                                                    rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                                    rdfs:range xsd:string ;
-                                                                   rdfs:description "Contact ID" ;
+                                                                   rdfs:comment "Contact ID" ;
                                                                    rdfs:label "SupplierContact_ID" .
 
 
@@ -9162,7 +9160,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/supplierContact_Name> rdf:type owl:DatatypeProperty ;
                                                                      rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                                      rdfs:range xsd:string ;
-                                                                     rdfs:description "Contact Name" ;
+                                                                     rdfs:comment "Contact Name" ;
                                                                      rdfs:label "SupplierContact_Name" .
 
 
@@ -9170,7 +9168,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/supplierContact_Role> rdf:type owl:DatatypeProperty ;
                                                                      rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                                      rdfs:range xsd:string ;
-                                                                     rdfs:description "Contact Role" ;
+                                                                     rdfs:comment "Contact Role" ;
                                                                      rdfs:label "SupplierContact_Role" .
 
 
@@ -9178,7 +9176,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/supplierGlobal_ID> rdf:type owl:DatatypeProperty ;
                                                                   rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                                   rdfs:range xsd:string ;
-                                                                  rdfs:description "Number" ;
+                                                                  rdfs:comment "Number" ;
                                                                   rdfs:label "SupplierGlobal_ID" .
 
 
@@ -9186,7 +9184,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/supplierGlobal_Name> rdf:type owl:DatatypeProperty ;
                                                                     rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
                                                                     rdfs:range xsd:string ;
-                                                                    rdfs:description "Supplier name" ;
+                                                                    rdfs:comment "Supplier name" ;
                                                                     rdfs:label "SupplierGlobal_Name" .
 
 
@@ -9194,7 +9192,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/supplierName> rdf:type owl:DatatypeProperty ;
                                                              rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                              rdfs:range xsd:string ;
-                                                             rdfs:description "Name of the supplier" ;
+                                                             rdfs:comment "Name of the supplier" ;
                                                              rdfs:label "Supplier_Name" .
 
 
@@ -9202,7 +9200,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/supplier_ID> rdf:type owl:DatatypeProperty ;
                                                             rdfs:domain <http://www.w3id.org/digital-reference/quality/Quality_Complaint> ;
                                                             rdfs:range xsd:string ;
-                                                            rdfs:description "Identifier of the supplier" ;
+                                                            rdfs:comment "Identifier of the supplier" ;
                                                             rdfs:label "SupplierGlobal_ID" .
 
 
@@ -9210,7 +9208,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/takenCorrectiveAction> rdf:type owl:DatatypeProperty ;
                                                                       rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D6> ;
                                                                       rdfs:range xsd:string ;
-                                                                      rdfs:description "" ;
+                                                                      rdfs:comment "" ;
                                                                       rdfs:label "TakenCorrectiveAction" .
 
 
@@ -9218,7 +9216,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/teamMemberContactReference> rdf:type owl:DatatypeProperty ;
                                                                            rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D1> ;
                                                                            rdfs:range xsd:string ;
-                                                                           rdfs:description "Team member contact" ;
+                                                                           rdfs:comment "Team member contact" ;
                                                                            rdfs:label "TeamMemberContactReference" .
 
 
@@ -9230,7 +9228,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
                                                                   <http://www.w3id.org/digital-reference/quality/Step_D6> ,
                                                                   <http://www.w3id.org/digital-reference/quality/Step_D7> ;
                                                       rdfs:range xsd:string ;
-                                                      rdfs:description "Title/short description of action" ,
+                                                      rdfs:comment "Title/short description of action" ,
                                                                        "Title/short description of root cause" ;
                                                       rdfs:label "Title" .
 
@@ -9239,7 +9237,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/transportLotID> rdf:type owl:DatatypeProperty ;
                                                                rdfs:domain <http://www.w3id.org/digital-reference/quality/Shipment> ;
                                                                rdfs:range xsd:string ;
-                                                               rdfs:description "" ;
+                                                               rdfs:comment "" ;
                                                                rdfs:label "TransportLotID" .
 
 
@@ -9247,7 +9245,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/typeMarked> rdf:type owl:DatatypeProperty ;
                                                            rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                            rdfs:range xsd:string ;
-                                                           rdfs:description "Product Type" ;
+                                                           rdfs:comment "Product Type" ;
                                                            rdfs:label "TypeMarked" .
 
 
@@ -9255,7 +9253,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/validationDateTime> rdf:type owl:DatatypeProperty ;
                                                                    rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D6> ;
                                                                    rdfs:range xsd:dateTime ;
-                                                                   rdfs:description "Date/time validation was performed.  If element provided, EffectivenessDegreeNumeric and ValidationDescription also need to be provided." ;
+                                                                   rdfs:comment "Date/time validation was performed.  If element provided, EffectivenessDegreeNumeric and ValidationDescription also need to be provided." ;
                                                                    rdfs:label "ValidationDateTime" .
 
 
@@ -9263,7 +9261,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/validationDescription> rdf:type owl:DatatypeProperty ;
                                                                       rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D6> ;
                                                                       rdfs:range xsd:string ;
-                                                                      rdfs:description "If element provided, EffectivenessDegreeNumeric and ValidationDateTime also need to be provided." ;
+                                                                      rdfs:comment "If element provided, EffectivenessDegreeNumeric and ValidationDateTime also need to be provided." ;
                                                                       rdfs:label "ValidationDescription" .
 
 
@@ -9271,7 +9269,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/verificationDescription> rdf:type owl:DatatypeProperty ;
                                                                         rdfs:domain <http://www.w3id.org/digital-reference/quality/Step_D5> ;
                                                                         rdfs:range xsd:string ;
-                                                                        rdfs:description "" ;
+                                                                        rdfs:comment "" ;
                                                                         rdfs:label "VerificationDescription" .
 
 
@@ -9279,7 +9277,7 @@ sosa:result_time rdf:type owl:DatatypeProperty ;
 <http://www.w3id.org/digital-reference/quality/waferLotReference> rdf:type owl:DatatypeProperty ;
                                                                   rdfs:domain <http://www.w3id.org/digital-reference/quality/Lot> ;
                                                                   rdfs:range xsd:string ;
-                                                                  rdfs:description "" ;
+                                                                  rdfs:comment "" ;
                                                                   rdfs:label "WaferLotReference" .
 
 
@@ -15115,105 +15113,105 @@ ssn-system:System_Property rdf:type owl:Class ;
 ###  http://www.w3id.org/digital-reference/quality/Lot
 <http://www.w3id.org/digital-reference/quality/Lot> rdf:type owl:Class ;
                                                     rdfs:subClassOf dr:Quality_Management_Lobe ;
-                                                    rdfs:description "Manufacturing lot details" ;
+                                                    rdfs:comment "Manufacturing lot details" ;
                                                     rdfs:label "Lot" .
 
 
 ###  http://www.w3id.org/digital-reference/quality/Product_Instance
 <http://www.w3id.org/digital-reference/quality/Product_Instance> rdf:type owl:Class ;
                                                                  rdfs:subClassOf dr:Quality_Management_Lobe ;
-                                                                 rdfs:description "Device / product, as identified by its marking details" ;
+                                                                 rdfs:comment "Device / product, as identified by its marking details" ;
                                                                  rdfs:label "Product Instance" .
 
 
 ###  http://www.w3id.org/digital-reference/quality/Product_Marking
 <http://www.w3id.org/digital-reference/quality/Product_Marking> rdf:type owl:Class ;
                                                                 rdfs:subClassOf dr:Quality_Management_Lobe ;
-                                                                rdfs:description "Marking details of a product / device. These marking details are used to identify the product and its manufacturing lot details" ;
+                                                                rdfs:comment "Marking details of a product / device. These marking details are used to identify the product and its manufacturing lot details" ;
                                                                 rdfs:label "Product Marking" .
 
 
 ###  http://www.w3id.org/digital-reference/quality/Quality_Complaint
 <http://www.w3id.org/digital-reference/quality/Quality_Complaint> rdf:type owl:Class ;
                                                                   rdfs:subClassOf <http://www.w3id.org/ecsel-dr/quality/Quality_Request> ;
-                                                                  rdfs:description "Technical complaint or Issue as reported by a customer about a (or more than 1) product / device. Helping to solve the customer issue whoever caused it and aligning to critical customer needs helps to drive positive customer scorecard results and enables future business growth." ;
+                                                                  rdfs:comment "Technical complaint or Issue as reported by a customer about a (or more than 1) product / device. Helping to solve the customer issue whoever caused it and aligning to critical customer needs helps to drive positive customer scorecard results and enables future business growth." ;
                                                                   rdfs:label "Quality Complaint" .
 
 
 ###  http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D
 <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> rdf:type owl:Class ;
                                                                      rdfs:subClassOf dr:Quality_Management_Lobe ;
-                                                                     rdfs:description "Report out to the Customer on the technical complaint or Issue as reported by a customer." ;
+                                                                     rdfs:comment "Report out to the Customer on the technical complaint or Issue as reported by a customer." ;
                                                                      rdfs:label "Quality Complaint 8D" .
 
 
 ###  http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item
 <http://www.w3id.org/digital-reference/quality/Quality_Complaint_Line_Item> rdf:type owl:Class ;
                                                                             rdfs:subClassOf dr:Quality_Management_Lobe ;
-                                                                            rdfs:description "Item details of the technical complaint or Issue as reported by a customer about 1 product / device." ;
+                                                                            rdfs:comment "Item details of the technical complaint or Issue as reported by a customer about 1 product / device." ;
                                                                             rdfs:label "Quality Complaint Line Item" .
 
 
 ###  http://www.w3id.org/digital-reference/quality/Shipment
 <http://www.w3id.org/digital-reference/quality/Shipment> rdf:type owl:Class ;
                                                          rdfs:subClassOf dr:Quality_Management_Lobe ;
-                                                         rdfs:description "Shipment from the supplier to the customer of the device / product or a pack unit of equal devices / products." ;
+                                                         rdfs:comment "Shipment from the supplier to the customer of the device / product or a pack unit of equal devices / products." ;
                                                          rdfs:label "Shipment" .
 
 
 ###  http://www.w3id.org/digital-reference/quality/Step_D1
 <http://www.w3id.org/digital-reference/quality/Step_D1> rdf:type owl:Class ;
                                                         rdfs:subClassOf <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
-                                                        rdfs:description "The objective of process step D1 is to determine a sponsor, a team leader and the best possible team to solve the problem in a specific case" ;
+                                                        rdfs:comment "The objective of process step D1 is to determine a sponsor, a team leader and the best possible team to solve the problem in a specific case" ;
                                                         rdfs:label "StepD1" .
 
 
 ###  http://www.w3id.org/digital-reference/quality/Step_D2
 <http://www.w3id.org/digital-reference/quality/Step_D2> rdf:type owl:Class ;
                                                         rdfs:subClassOf <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
-                                                        rdfs:description "The objective of the process step D2 is to understand the problem with regard to its interconnections and transfer the identified non-conformity into a specific, fact-based problem description. A problem description is a simple, precise statement about the item and the non-conformity, whose cause is not known. It should be as accurate as possible, and the problem environment should also be described if applicable (e.g. the processes/components involved within a complex system). The core of the problem is to be identified and quantified. All necessary data are available and analyzed sufficiently so that the extent of the problem (number of parts concerned, versions, vehicles, etc.) can be described in a manner that is understandable." ;
+                                                        rdfs:comment "The objective of the process step D2 is to understand the problem with regard to its interconnections and transfer the identified non-conformity into a specific, fact-based problem description. A problem description is a simple, precise statement about the item and the non-conformity, whose cause is not known. It should be as accurate as possible, and the problem environment should also be described if applicable (e.g. the processes/components involved within a complex system). The core of the problem is to be identified and quantified. All necessary data are available and analyzed sufficiently so that the extent of the problem (number of parts concerned, versions, vehicles, etc.) can be described in a manner that is understandable." ;
                                                         rdfs:label "StepD2" .
 
 
 ###  http://www.w3id.org/digital-reference/quality/Step_D3
 <http://www.w3id.org/digital-reference/quality/Step_D3> rdf:type owl:Class ;
                                                         rdfs:subClassOf <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
-                                                        rdfs:description "The objective of D3 is to define the containment actions in order to fully eliminate the impact of the problem on external and internal customers. The containment actions have to be implemented and their effectiveness ensured until the implemented corrective actions (D6) have been validated. All containment actions serve to limit immediate losses, and are based on specific requirements (software, services, hardware, etc.)" ;
+                                                        rdfs:comment "The objective of D3 is to define the containment actions in order to fully eliminate the impact of the problem on external and internal customers. The containment actions have to be implemented and their effectiveness ensured until the implemented corrective actions (D6) have been validated. All containment actions serve to limit immediate losses, and are based on specific requirements (software, services, hardware, etc.)" ;
                                                         rdfs:label "StepD3" .
 
 
 ###  http://www.w3id.org/digital-reference/quality/Step_D4
 <http://www.w3id.org/digital-reference/quality/Step_D4> rdf:type owl:Class ;
                                                         rdfs:subClassOf <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
-                                                        rdfs:description "In process step D4, the actual causes of the underlying problem - the root causes - are determined and verified based on the problem description (D2), the Is/Is-Not analysis and taking into consideration the findings from the containment actions (D3). The objective is to identify both the technical root causes and the systemic root causes (see glossary) for the occurrence of the failure and the non-detection of the failure." ;
+                                                        rdfs:comment "In process step D4, the actual causes of the underlying problem - the root causes - are determined and verified based on the problem description (D2), the Is/Is-Not analysis and taking into consideration the findings from the containment actions (D3). The objective is to identify both the technical root causes and the systemic root causes (see glossary) for the occurrence of the failure and the non-detection of the failure." ;
                                                         rdfs:label "StepD4" .
 
 
 ###  http://www.w3id.org/digital-reference/quality/Step_D5
 <http://www.w3id.org/digital-reference/quality/Step_D5> rdf:type owl:Class ;
                                                         rdfs:subClassOf <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
-                                                        rdfs:description "The objective of process step D5 is the development, selection and verification of corrective actions to eliminate the technical and systemic root causes for the occurrence and nondetection identified in D4 (root cause analysis). Corrective actions are selected on the basis of proven effectiveness while taking their efficiency into account. Evidence of effectiveness must be documented. The optimum corrective actions with long-term effect are to be selected. Suitable tests, for example, are to be used to demonstrate that the selected corrective actions solve the problem permanently and do not have any undesirable effects. The outcome is an approved action plan with established deadlines, resource plan and responsibilities for the selected corrective actions" ;
+                                                        rdfs:comment "The objective of process step D5 is the development, selection and verification of corrective actions to eliminate the technical and systemic root causes for the occurrence and nondetection identified in D4 (root cause analysis). Corrective actions are selected on the basis of proven effectiveness while taking their efficiency into account. Evidence of effectiveness must be documented. The optimum corrective actions with long-term effect are to be selected. Suitable tests, for example, are to be used to demonstrate that the selected corrective actions solve the problem permanently and do not have any undesirable effects. The outcome is an approved action plan with established deadlines, resource plan and responsibilities for the selected corrective actions" ;
                                                         rdfs:label "StepD5" .
 
 
 ###  http://www.w3id.org/digital-reference/quality/Step_D6
 <http://www.w3id.org/digital-reference/quality/Step_D6> rdf:type owl:Class ;
                                                         rdfs:subClassOf <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
-                                                        rdfs:description "The objective of D6 is the implementation of the selected permanent corrective actions. The permanent corrective actions are validated and long-term results are observed. The containment actions will be removed/lifted after the implementation and validation of the permanent corrective actions." ;
+                                                        rdfs:comment "The objective of D6 is the implementation of the selected permanent corrective actions. The permanent corrective actions are validated and long-term results are observed. The containment actions will be removed/lifted after the implementation and validation of the permanent corrective actions." ;
                                                         rdfs:label "StepD6" .
 
 
 ###  http://www.w3id.org/digital-reference/quality/Step_D7
 <http://www.w3id.org/digital-reference/quality/Step_D7> rdf:type owl:Class ;
                                                         rdfs:subClassOf <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
-                                                        rdfs:description "The objective of the D7 is to identify and document actions that ensure the permanent prevention of the identified root causes for similar products or processes by adapting the management system in the sense of standardization. The result is the preparation and transfer of acquired information to other processes, such as the lessons learned process." ;
+                                                        rdfs:comment "The objective of the D7 is to identify and document actions that ensure the permanent prevention of the identified root causes for similar products or processes by adapting the management system in the sense of standardization. The result is the preparation and transfer of acquired information to other processes, such as the lessons learned process." ;
                                                         rdfs:label "StepD7" .
 
 
 ###  http://www.w3id.org/digital-reference/quality/Step_D8
 <http://www.w3id.org/digital-reference/quality/Step_D8> rdf:type owl:Class ;
                                                         rdfs:subClassOf <http://www.w3id.org/digital-reference/quality/Quality_Complaint_8D> ;
-                                                        rdfs:description "The purpose of process step D8 is to conclude the team's work, to acknowledge the performance of individuals and the team, and to release the team from the task. The result is the completed 8D report." ;
+                                                        rdfs:comment "The purpose of process step D8 is to conclude the team's work, to acknowledge the performance of individuals and the team, and to release the team from the task. The result is the completed 8D report." ;
                                                         rdfs:label "StepD8" .
 
 
