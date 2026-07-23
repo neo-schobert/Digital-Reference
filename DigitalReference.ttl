@@ -1817,9 +1817,12 @@ ecsel-dr-BMS:contributes_for_CO2_savings rdf:type owl:ObjectProperty ;
 
 ###  http://www.w3id.org/ecsel-dr-BMS#enables_CO2_savings
 ecsel-dr-BMS:enables_CO2_savings rdf:type owl:ObjectProperty ;
-                                 rdfs:domain ecsel-dr-BMS:Electric_Means_Transportation ,
-                                             ecsel-dr-BMS:Longer_Lifespan ,
-                                             ecsel-dr-BMS:Optimized_Charging ;
+                                 rdfs:domain [ rdf:type owl:Class ;
+                                               owl:unionOf ( ecsel-dr-BMS:Electric_Means_Transportation
+                                                             ecsel-dr-BMS:Longer_Lifespan
+                                                             ecsel-dr-BMS:Optimized_Charging
+                                                           )
+                                             ] ;
                                  rdfs:range ecsel-dr-BMS:Battery_CO2_Savings .
 
 
@@ -1837,29 +1840,38 @@ ecsel-dr-BMS:has_functional_block rdf:type owl:ObjectProperty ;
 
 ###  http://www.w3id.org/ecsel-dr-BMS#has_semiconductor
 ecsel-dr-BMS:has_semiconductor rdf:type owl:ObjectProperty ;
-                               rdfs:domain ecsel-dr-BMS:Battery_Control_Unit ,
-                                           ecsel-dr-BMS:Cell_Supervision ,
-                                           ecsel-dr-BMS:Current_Sensing ,
-                                           ecsel-dr-BMS:Isolated_Communication ,
-                                           ecsel-dr-BMS:Pack_Monitoring ;
+                               rdfs:domain [ rdf:type owl:Class ;
+                                             owl:unionOf ( ecsel-dr-BMS:Battery_Control_Unit
+                                                           ecsel-dr-BMS:Cell_Supervision
+                                                           ecsel-dr-BMS:Current_Sensing
+                                                           ecsel-dr-BMS:Isolated_Communication
+                                                           ecsel-dr-BMS:Pack_Monitoring
+                                                         )
+                                           ] ;
                                rdfs:range ecsel-dr-BMS:Semiconductor .
 
 
 ###  http://www.w3id.org/ecsel-dr-BMS#is_functional_block
 ecsel-dr-BMS:is_functional_block rdf:type owl:ObjectProperty ;
-                                 rdfs:domain ecsel-dr-BMS:Battery_Control_Unit ,
-                                             ecsel-dr-BMS:Cell_Supervision ,
-                                             ecsel-dr-BMS:Current_Sensing ,
-                                             ecsel-dr-BMS:Isolated_Communication ,
-                                             ecsel-dr-BMS:Pack_Monitoring ;
+                                 rdfs:domain [ rdf:type owl:Class ;
+                                               owl:unionOf ( ecsel-dr-BMS:Battery_Control_Unit
+                                                             ecsel-dr-BMS:Cell_Supervision
+                                                             ecsel-dr-BMS:Current_Sensing
+                                                             ecsel-dr-BMS:Isolated_Communication
+                                                             ecsel-dr-BMS:Pack_Monitoring
+                                                           )
+                                             ] ;
                                  rdfs:range ecsel-dr-BMS:Functional_Block .
 
 
 ###  http://www.w3id.org/ecsel-dr-BMS#is_part_of_battery
 ecsel-dr-BMS:is_part_of_battery rdf:type owl:ObjectProperty ;
-                                rdfs:domain ecsel-dr-BMS:Battery_Management_System ,
-                                            ecsel-dr-BMS:Cells ,
-                                            ecsel-dr-BMS:Pack ;
+                                rdfs:domain [ rdf:type owl:Class ;
+                                              owl:unionOf ( ecsel-dr-BMS:Battery_Management_System
+                                                            ecsel-dr-BMS:Cells
+                                                            ecsel-dr-BMS:Pack
+                                                          )
+                                            ] ;
                                 rdfs:range ecsel-dr-BMS:Lithium_Ion_Battery .
 
 
