@@ -18893,10 +18893,10 @@ ecsel-dr-CO2Savings:Wind_Turbine rdf:type owl:Class ;
                                                  ] .
 
 
-###  http://www.w3id.org/ecsel-dr-Cloud-AH#AH_Application_Servcice_IDD
-<http://www.w3id.org/ecsel-dr-Cloud-AH#AH_Application_Servcice_IDD> rdf:type owl:Class ;
+###  http://www.w3id.org/ecsel-dr-Cloud-AH#AH_Application_Service_IDD
+<http://www.w3id.org/ecsel-dr-Cloud-AH#AH_Application_Service_IDD> rdf:type owl:Class ;
                                                                     rdfs:subClassOf <http://www.w3id.org/ecsel-dr-Cloud-AH#Interface_Design_Description_IDD> ;
-                                                                    rdfs:label "AH Application Servcice IDD"@en ;
+                                                                    rdfs:label "AH Application Service IDD"@en ;
                                                                     skos:definition """AH Application Service IDD (Application Service Interface Design Description) is a subclass of AH Service Documentation Document and represents the central document within the documentation set of a specific application service in the Eclipse Arrowhead Framework. As an Interface Design Description, it provides a complete and technically precise specification of a service implementation by defining the communication technology, encoding scheme, data format, and information model used by application systems that exchange information by providing and/or consuming application services. It may either declare these technical contents directly or reference external Communication Profile and Semantic Profile documents where those exist, making it the authoritative linking document between the general service description and all technology-specific implementation details."""@en .
 
 
