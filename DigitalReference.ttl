@@ -12826,7 +12826,6 @@ It reflects a product from customer view without differentiation of manufacturin
 
 ###  http://www.w3id.org/ecsel-dr-PROD#sales_product_number
 ecsel-dr-PROD:sales_product_number rdf:type owl:DatatypeProperty ;
-                                   rdfs:subPropertyOf ecsel-dr-PROD:sales_product_name ;
                                    rdfs:domain ecsel-dr-PROD:Sales_Product ;
                                    rdfs:range xsd:string ;
                                    rdfs:comment "A salesProductNumber is a unique identifier of a Sales Product"@en ;
