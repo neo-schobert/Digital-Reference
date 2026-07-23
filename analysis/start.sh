@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+# ---------------------------------------------------------------------------
+# Lancement unifié du Digital Reference Explorer
+#   - démarre le backend (Express + oxigraph) en arrière-plan
+#   - démarre le frontend (Vite) et ouvre automatiquement le navigateur
+#   - installe les dépendances manquantes, et explique les échecs (droits,
+#     réseau, disque…) le cas échéant
+# Arrêt : Ctrl+C (arrête aussi le backend), ou ./stop.sh
+# ---------------------------------------------------------------------------
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_DIR="$ROOT/.logs"
+mkdir -p "$LOG_DIR"
+
+BACKEND_PORT="${DR_BACKEND_PORT:-3178}"
+FRONTEND_PORT="${DR_FRONTEND_PORT:-5173}"
+
+info() { printf '\033[1;34m[start]\033[0m %s\n' "$*"; }
+err()  { printf '\033[1;31m[erreur]\033[0m %s\n' "$*" >&2; }
+
+# ---------------------------------------------------------------------------
+# 1. Node.js : PATH courant, puis emplacements usuels (installation locale,
+#    nvm), sinon on explique comment l'installer sans droits root.
+# ---------------------------------------------------------------------------
+if ! command -v node >/dev/null 2>&1; then
+  for candidate in "$HOME/.local/opt/node22/bin" "$HOME/.nvm/versions/node"/*/bin; do
+    if [ -x "$candidate/node" ]; then
+      export PATH="$candidate:$PATH"
+      break
+    fi
+  done
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  err "Node.js est introuvable sur cette machine."
+  cat >&2 <<'EOF'
+Installation sans droits root (recommandée) — copiez-collez :
+
+  mkdir -p ~/.local/opt && cd ~/.local/opt \
+    && curl -L -o node.tar.xz https://nodejs.org/dist/v22.17.1/node-v22.17.1-linux-x64.tar.xz \
+    && tar xf node.tar.xz && rm node.tar.xz \
+    && mv node-v22.17.1-linux-x64 node22 \
+    && echo 'export PATH="$HOME/.local/opt/node22/bin:$PATH"' >> ~/.bashrc \
+    && export PATH="$HOME/.local/opt/node22/bin:$PATH"
+
+Puis relancez ce script.
+EOF
+  exit 1
+fi
+info "node $(node --version), npm $(npm --version)"
+
+# ---------------------------------------------------------------------------
+# 2. Dépendances npm, avec diagnostic clair en cas d'échec
+# ---------------------------------------------------------------------------
+explain_npm_failure() {
+  local log="$1"
+  err "L'installation des dépendances a échoué. Dernières lignes du journal ($log) :"
+  tail -n 15 "$log" >&2
+  echo >&2
+  if grep -qE 'EACCES|EPERM' "$log"; then
+    err "Cause probable : PERMISSIONS insuffisantes."
+    cat >&2 <<EOF
+  - Vérifiez que le dossier vous appartient :  ls -ld "$ROOT"
+  - Si le cache npm est en cause :             sudo chown -R \$(id -u):\$(id -g) ~/.npm
+  - N'utilisez PAS sudo npm install : corrigez plutôt les droits ci-dessus.
+EOF
+  elif grep -qE 'ENOTFOUND|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|407|proxy' "$log"; then
+    err "Cause probable : RÉSEAU (pas d'accès à registry.npmjs.org, proxy d'entreprise ?)."
+    cat >&2 <<'EOF'
+  - Testez :  curl -I https://registry.npmjs.org
+  - Derrière un proxy :  npm config set proxy http://... && npm config set https-proxy http://...
+EOF
+  elif grep -q 'ENOSPC' "$log"; then
+    err "Cause probable : DISQUE PLEIN. Libérez de l'espace puis relancez (df -h)."
+  else
+    err "Cause non identifiée automatiquement — lisez le journal complet ci-dessus."
+  fi
+  exit 1
+}
+
+ensure_deps() {
+  local dir="$1" name="$2"
+  if [ ! -d "$dir/node_modules" ]; then
+    info "Installation des dépendances $name (première exécution)…"
+    if ! (cd "$dir" && npm install >"$LOG_DIR/npm-$name.log" 2>&1); then
+      explain_npm_failure "$LOG_DIR/npm-$name.log"
+    fi
+    info "Dépendances $name installées."
+  fi
+}
+
+ensure_deps "$ROOT/backend" "backend"
+ensure_deps "$ROOT/frontend" "frontend"
+
+# ---------------------------------------------------------------------------
+# 3. Backend en arrière-plan (arrêt d'une éventuelle instance précédente)
+# ---------------------------------------------------------------------------
+if [ -f "$LOG_DIR/backend.pid" ]; then
+  OLD_PID="$(cat "$LOG_DIR/backend.pid")"
+  if kill -0 "$OLD_PID" 2>/dev/null; then
+    info "Arrêt de l'instance backend précédente (pid $OLD_PID)…"
+    kill "$OLD_PID" 2>/dev/null || true
+    sleep 1
+  fi
+  rm -f "$LOG_DIR/backend.pid"
+fi
+
+info "Démarrage du backend sur le port $BACKEND_PORT…"
+(
+  cd "$ROOT/backend"
+  DR_BACKEND_PORT="$BACKEND_PORT" nohup npx tsx src/server.ts \
+    >"$LOG_DIR/backend.log" 2>&1 &
+  echo $! >"$LOG_DIR/backend.pid"
+)
+
+BACKEND_PID="$(cat "$LOG_DIR/backend.pid")"
+
+for i in $(seq 1 60); do
+  if curl -sf "http://localhost:$BACKEND_PORT/api/health" >/dev/null 2>&1; then
+    break
+  fi
+  if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+    err "Le backend s'est arrêté au démarrage. Journal :"
+    tail -n 25 "$LOG_DIR/backend.log" >&2
+    exit 1
+  fi
+  if [ "$i" -eq 60 ]; then
+    err "Le backend ne répond pas après 30 s. Journal :"
+    tail -n 25 "$LOG_DIR/backend.log" >&2
+    exit 1
+  fi
+  sleep 0.5
+done
+info "Backend prêt : http://localhost:$BACKEND_PORT (log : $LOG_DIR/backend.log)"
+
+# À la sortie du frontend (Ctrl+C), on arrête proprement le backend
+cleanup() {
+  if [ -f "$LOG_DIR/backend.pid" ]; then
+    kill "$(cat "$LOG_DIR/backend.pid")" 2>/dev/null || true
+    rm -f "$LOG_DIR/backend.pid"
+    info "Backend arrêté."
+  fi
+}
+trap cleanup EXIT INT TERM
+
+# ---------------------------------------------------------------------------
+# 4. Frontend (premier plan) — --open lance le navigateur automatiquement
+# ---------------------------------------------------------------------------
+info "Démarrage du frontend sur le port $FRONTEND_PORT — le navigateur va s'ouvrir…"
+cd "$ROOT/frontend"
+DR_BACKEND_PORT="$BACKEND_PORT" npx vite --port "$FRONTEND_PORT" --open
