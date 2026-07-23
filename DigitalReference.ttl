@@ -25316,11 +25316,7 @@ ecsel-dr-RAMI40:Type rdf:type owl:NamedIndividual .
 ecsel-dr-RAMI40:Work_Center rdf:type owl:NamedIndividual .
 
 
-[ owl:cardinality "1"^^xsd:nonNegativeInteger
-] .
 
-[ owl:cardinality "1"^^xsd:nonNegativeInteger
- ] .
 
 #################################################################
 #    Annotations
