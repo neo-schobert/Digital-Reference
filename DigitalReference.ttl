@@ -22156,7 +22156,7 @@ ecsel-dr-Planning:Autonomous rdf:type owl:Class ;
 
 ###  http://www.w3id.org/ecsel-dr-Planning#Available_Capacity
 ecsel-dr-Planning:Available_Capacity rdf:type owl:Class ;
-                                     rdfs:subClassOf ecsel-dr-Planning:Required_Capacity ;
+                                     rdfs:subClassOf dr:Capacity ;
                                      rdfs:comment "The AVAILABLE CAPACITY describes the ability of a resource within a period of time to perform activities or processes. Elmaghraby (2011) refers to this as operational capacity, i.e. the productive capacity that is obtained from the nominal capacity by subtracting the anticipated and unavoidable loss in productivity, for instance, due to machine breakdowns in a wafer fab." ;
                                      rdfs:label "Available Capacity"@en .
 
