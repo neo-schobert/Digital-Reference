@@ -23801,7 +23801,7 @@ ecsel-dr-RAMI40:Structure rdf:type owl:Class ;
 
 ###  http://www.w3id.org/ecsel-dr-RAMI40#Submodel
 ecsel-dr-RAMI40:Submodel rdf:type owl:Class ;
-                         rdfs:subClassOf <http://www.w3id.org/ecsel-dr-Planning-SCP#Stocks> ;
+                         rdfs:subClassOf dr:System_Lobe ;
                          rdfs:comment "Describe the different types of data related to the I4.0 asset"@en ;
                          rdfs:label "Submodel"@en .
 
