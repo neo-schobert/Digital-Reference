@@ -52,3 +52,27 @@ As of the construction of the ontology the following DBpedia Archivo snapshots w
 - Semantic Sensor Network Ontology<br/>[@DBpedia Archivo](https://archivo.dbpedia.org/info?o=http://www.w3.org/ns/ssn/), Snapshot: [[2023.04.02-001722](https://databus.dbpedia.org/ontologies/w3.org/ns--ssn/2023.04.02-001722)] Artifact: [[ttl](https://archivo.dbpedia.org/download?o=http%3A//www.w3.org/ns/ssn/&f=ttl&v=2023.04.02-001722)]
 - System capabilities, operating ranges, and survival ranges ontology<br/>[@DBpedia Archivo](https://archivo.dbpedia.org/info?o=http://www.w3.org/ns/ssn/systems/), Snapshot: [[2022.03.04-203505](https://databus.dbpedia.org/ontologies/w3.org/ns--ssn--systems/2022.03.04-203505)] Artifact: [[ttl](https://archivo.dbpedia.org/download?o=http%3A//www.w3.org/ns/ssn/systems/&f=ttl&v=2022.03.04-203505)]
 - Extensions to the SSN Ontology<br/>[@DBpedia Archivo](https://archivo.dbpedia.org/info?o=http://www.w3.org/ns/ssn/ext), Snapshot: [[2024.01.23-235557](https://databus.dbpedia.org/ontologies/w3.org/ns--ssn--ext/2024.01.23-235557)] Artifact: [[ttl](https://archivo.dbpedia.org/download?o=http%3A//www.w3.org/ns/ssn/ext&f=ttl&v=2024.01.23-235557)]
+
+
+## Modifications (fork notice)
+
+This repository is a fork of [tibonto/dr](https://github.com/tibonto/dr)
+(Digital Reference ontology, Apache License 2.0).
+
+Pursuant to Section 4(b) of the Apache License 2.0, notice is hereby given
+that the following changes were made in this fork:
+
+- **`DigitalReference.ttl` has been modified**: ontology fixes such as
+  class reparenting (e.g. EDI_Forecast, SSO_Stocks, Available_Capacity),
+  corrected copy-paste definitions, replacement of non-standard
+  `rdfs:description` annotations with `rdfs:comment`, removal of unused
+  phantom namespace prefixes, and declaration of real module namespaces as
+  prefixes with CURIEs. See the git history for the complete list of
+  changes.
+- **`analysis/` was added**: the *Digital Reference Explorer*, a web
+  application (Node/Express + oxigraph backend, Vite/React frontend) to
+  visualize and query the ontology — see [analysis/README.md](analysis/README.md).
+
+All original copyright and attribution notices have been retained. This
+fork, including its modifications and additions, is distributed under the
+same [Apache License 2.0](License.txt).
