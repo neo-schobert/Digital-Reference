@@ -6976,9 +6976,9 @@ ecsel-dr-Planning:uses_planning_approach rdf:type owl:ObjectProperty ;
                                                    rdfs:label "acting as"@en .
 
 
-###  http://www.w3id.org/ecsel-dr-Power-PWR#amplication_switching_device_has_property
-<http://www.w3id.org/ecsel-dr-Power-PWR#amplication_switching_device_has_property> rdf:type owl:ObjectProperty ;
-                                                                                   rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> ;
+###  http://www.w3id.org/ecsel-dr-Power-PWR#amplification_switching_device_has_property
+<http://www.w3id.org/ecsel-dr-Power-PWR#amplification_switching_device_has_property> rdf:type owl:ObjectProperty ;
+                                                                                   rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device> ;
                                                                                    rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Property> ;
                                                                                    rdfs:label "has property"@en .
 
@@ -6986,7 +6986,7 @@ ecsel-dr-Planning:uses_planning_approach rdf:type owl:ObjectProperty ;
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#amplified_by
 <http://www.w3id.org/ecsel-dr-Power-PWR#amplified_by> rdf:type owl:ObjectProperty ;
                                                       rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#The_Method_Of_The_Device_Function> ;
-                                                      rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> ;
+                                                      rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device> ;
                                                       rdfs:comment "The Act of The Switching"@en ;
                                                       rdfs:label "amplified by"@en .
 
@@ -7022,14 +7022,14 @@ ecsel-dr-Planning:uses_planning_approach rdf:type owl:ObjectProperty ;
 
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#has_configuration
 <http://www.w3id.org/ecsel-dr-Power-PWR#has_configuration> rdf:type owl:ObjectProperty ;
-                                                           rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> ;
+                                                           rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device> ;
                                                            rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Device_Configuration> ;
                                                            rdfs:label "has a configuration"@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#has_control_method
 <http://www.w3id.org/ecsel-dr-Power-PWR#has_control_method> rdf:type owl:ObjectProperty ;
-                                                            rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> ;
+                                                            rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device> ;
                                                             rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Control_Method> ;
                                                             rdfs:label "has a control method"@en .
 
@@ -7050,7 +7050,7 @@ ecsel-dr-Planning:uses_planning_approach rdf:type owl:ObjectProperty ;
 
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#has_element
 <http://www.w3id.org/ecsel-dr-Power-PWR#has_element> rdf:type owl:ObjectProperty ;
-                                                     rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> ;
+                                                     rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device> ;
                                                      rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Device_Element> ;
                                                      rdfs:label "has element"@en .
 
@@ -7058,14 +7058,14 @@ ecsel-dr-Planning:uses_planning_approach rdf:type owl:ObjectProperty ;
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#has_industry_sector
 <http://www.w3id.org/ecsel-dr-Power-PWR#has_industry_sector> rdf:type owl:ObjectProperty ;
                                                              rdfs:subPropertyOf <http://www.w3id.org/ecsel-dr-Power-PWR#are> ;
-                                                             rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> ;
+                                                             rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device> ;
                                                              rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Semiconductors> ;
                                                              rdfs:label "has industry sector"@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#has_information_object
 <http://www.w3id.org/ecsel-dr-Power-PWR#has_information_object> rdf:type owl:ObjectProperty ;
-                                                                rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> ;
+                                                                rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device> ;
                                                                 rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Semiconductor_Product_Data_Sheet> ;
                                                                 rdfs:comment "States that the devices have one or more information objects, which can be a sensor data sheet for the sensors." ;
                                                                 rdfs:isDefinedBy "IFX" ;
@@ -7074,14 +7074,14 @@ ecsel-dr-Planning:uses_planning_approach rdf:type owl:ObjectProperty ;
 
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#has_operation_modes
 <http://www.w3id.org/ecsel-dr-Power-PWR#has_operation_modes> rdf:type owl:ObjectProperty ;
-                                                             rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> ;
+                                                             rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device> ;
                                                              rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Enhancement_Mode> ;
                                                              rdfs:label "has an operation modes"@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#has_operation_region
 <http://www.w3id.org/ecsel-dr-Power-PWR#has_operation_region> rdf:type owl:ObjectProperty ;
-                                                              rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> ;
+                                                              rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device> ;
                                                               rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Region_Of_Operation> ;
                                                               rdfs:label "has an operation region"@en .
 
@@ -7111,7 +7111,7 @@ ecsel-dr-Planning:uses_planning_approach rdf:type owl:ObjectProperty ;
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#has_properties_of
 <http://www.w3id.org/ecsel-dr-Power-PWR#has_properties_of> rdf:type owl:ObjectProperty ;
                                                            rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Semiconductor_Product_Data_Sheet> ;
-                                                           rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> ;
+                                                           rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device> ;
                                                            rdfs:label "has properties of"@en .
 
 
@@ -7153,7 +7153,7 @@ ecsel-dr-Planning:uses_planning_approach rdf:type owl:ObjectProperty ;
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#is_produced_by
 <http://www.w3id.org/ecsel-dr-Power-PWR#is_produced_by> rdf:type owl:ObjectProperty ;
                                                         rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#The_Device_Output> ;
-                                                        rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> ;
+                                                        rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device> ;
                                                         rdfs:label "is produced by" .
 
 
@@ -7168,7 +7168,7 @@ ecsel-dr-Planning:uses_planning_approach rdf:type owl:ObjectProperty ;
 
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#makes_switching
 <http://www.w3id.org/ecsel-dr-Power-PWR#makes_switching> rdf:type owl:ObjectProperty ;
-                                                         rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> ;
+                                                         rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device> ;
                                                          rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#The_Method_Of_The_Device_Function> ;
                                                          rdfs:comment "the method name, e.g.:observation and amlification"@en ;
                                                          rdfs:label "makes switching"@en .
@@ -7176,7 +7176,7 @@ ecsel-dr-Planning:uses_planning_approach rdf:type owl:ObjectProperty ;
 
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#the_temperature_must_not_exceed
 <http://www.w3id.org/ecsel-dr-Power-PWR#the_temperature_must_not_exceed> rdf:type owl:ObjectProperty ;
-                                                                         rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> ;
+                                                                         rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device> ;
                                                                          rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Maximum_Junction_Temperature> ;
                                                                          rdfs:label "the temperature must not exceed"@en .
 
@@ -15348,7 +15348,7 @@ dr:Planning_Purpose rdf:type owl:Class ;
 dr:Power_Lobe rdf:type owl:Class ;
               rdfs:comment """Power refers to the electrical energy consumed or dissipated by electronic devices or components during their operation, and is a crucial consideration for efficiency and performance optimization.
 
-The Power lobe models the Amplication Switching Device, Control Method, Device Configuration and Element, Document, Entity, and Gate Driver.
+The Power lobe models the Amplification Switching Device, Control Method, Device Configuration and Element, Document, Entity, and Gate Driver.
 It also represents the notions of Industrial Sector, Information Object, Operation Mode, Process, Process Input and Output.
 It maps the topics of Product, Resistance, SiC MOSFET, switcher, and Voltage."""@en ,
                            "Lobe owner: Hans Ehm" ;
@@ -22907,12 +22907,12 @@ Example: mathematical entities: formal semantics elements, regions within dimens
                                                   rdfs:label "Abstract"@en .
 
 
-###  http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device
-<http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> rdf:type owl:Class ;
+###  http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device
+<http://www.w3id.org/ecsel-dr-Power-PWR#Amplification_Switching_Device> rdf:type owl:Class ;
                                                                       owl:equivalentClass <http://www.w3id.org/ecsel-dr-Power-PWR#SiC_MOSFET> ;
                                                                       rdfs:subClassOf <http://www.w3id.org/ecsel-dr-Power-PWR#Power_Device> ;
                                                                       rdfs:comment "Should defined as its function for example: Sensor, Power Converter, Microcontroller. Then must be defined what the device it is, for exmaple: A sensing device is a device that implments sensing." ;
-                                                                      rdfs:label "Amplication Switching Device"@en .
+                                                                      rdfs:label "Amplification Switching Device"@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#Application_Area
