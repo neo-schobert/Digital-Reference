@@ -5300,7 +5300,7 @@ ecsel-dr-OOSMP:responsible_for_application_level_3_division rdf:type owl:ObjectP
                                                                                            <http://www.w3id.org/ecsel-dr-Organization-ORG#Region>
                                                                                          )
                                                                            ] ;
-                                                                rdfs:comment "A relation between a role and the funcionts it has, division and region it is part of."@en ;
+                                                                rdfs:comment "A relation between a role and the functions it has, division and region it is part of."@en ;
                                                                 rdfs:label "has a contributor"@en .
 
 
@@ -5590,7 +5590,7 @@ ecsel-dr-PMV:diagramed_on_model rdf:type owl:ObjectProperty ;
                                                           )
                                             ] ;
                                 rdfs:range ecsel-dr-PMV:Model ;
-                                rdfs:comment "Links a FuncitonObject or a ModelElement with the Model that it's represented in."@en ;
+                                rdfs:comment "Links a FunctionObject or a ModelElement with the Model that it's represented in."@en ;
                                 rdfs:label "diagramed on model"@en ;
                                 skos:altLabel "diagram" .
 
@@ -5864,7 +5864,7 @@ ecsel-dr-PMV:is_executed_by_function rdf:type owl:ObjectProperty ;
                                      rdfs:range ecsel-dr-PMV:Function ;
                                      rdfs:comment "Software is executed by a function in a process flow." ;
                                      rdfs:label "is executed by function"@en ;
-                                     skos:altLabel "exectu" .
+                                     skos:altLabel "execute" .
 
 
 ###  http://www.w3id.org/ecsel-dr-PMV#is_input_for
@@ -7067,7 +7067,7 @@ ecsel-dr-Planning:uses_planning_approach rdf:type owl:ObjectProperty ;
 <http://www.w3id.org/ecsel-dr-Power-PWR#has_information_object> rdf:type owl:ObjectProperty ;
                                                                 rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Amplication_Switching_Device> ;
                                                                 rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Semiconductor_Product_Data_Sheet> ;
-                                                                rdfs:comment "States that the devices have ona or more information objects, which can be a sensor data sheet for the sensors." ;
+                                                                rdfs:comment "States that the devices have one or more information objects, which can be a sensor data sheet for the sensors." ;
                                                                 rdfs:isDefinedBy "IFX" ;
                                                                 rdfs:label "has information object"@en .
 
@@ -7091,7 +7091,7 @@ ecsel-dr-Planning:uses_planning_approach rdf:type owl:ObjectProperty ;
                                                                                         rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#On_State_Power_Loss> ;
                                                                                         rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Drain_Current> ,
                                                                                                    <http://www.w3id.org/ecsel-dr-Power-PWR#On_State_Resistance> ;
-                                                                                        rdfs:label "has a power loss calculated by multiplicatoin of"@en .
+                                                                                        rdfs:label "has a power loss calculated by multiplication of"@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#has_process_input
@@ -15606,7 +15606,7 @@ ecsel-dr-AT:AS2 rdf:type owl:Class ;
 ###  http://www.w3id.org/ecsel-dr-AT#Actuator_Device
 ecsel-dr-AT:Actuator_Device rdf:type owl:Class ;
                             rdfs:subClassOf ecsel-dr-AT:Wired_Communication_Device ;
-                            rdfs:label "Acutator Device"@en ;
+                            rdfs:label "Actuator Device"@en ;
                             skos:definition "Actuator_Device - converts control signals into physical actions which alter power flow, electrical state, or mechanical motion within a power system."@en .
 
 
@@ -17939,14 +17939,14 @@ ecsel-dr-CO2Savings:Delivery_Gross_Weight rdf:type owl:Class ;
 ecsel-dr-CO2Savings:Distance_Between_Sender_And_Recipient rdf:type owl:Class ;
                                                           rdfs:subClassOf dr:Application ;
                                                           rdfs:comment "The distance between the sender and recipient of a shipment." ;
-                                                          rdfs:label "Distance Between Sender And Reciepent"@en .
+                                                          rdfs:label "Distance Between Sender And Recipient"@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-CO2Savings#Distance_Between_Sender_And_Recipient_Km
 ecsel-dr-CO2Savings:Distance_Between_Sender_And_Recipient_Km rdf:type owl:Class ;
                                                              rdfs:subClassOf dr:Application ;
                                                              rdfs:comment "The distance in kilometers between the sender and recipient of a shipment." ;
-                                                             rdfs:label "Distance Between Sender And Receipent Km"@en .
+                                                             rdfs:label "Distance Between Sender And Recipient Km"@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-CO2Savings#Distribution_Losses
@@ -21339,7 +21339,7 @@ The Agent class is useful in a few places in FOAF where Person would have been o
 ###  http://www.w3id.org/ecsel-dr-Organization-ORG#Central_Function
 <http://www.w3id.org/ecsel-dr-Organization-ORG#Central_Function> rdf:type owl:Class ;
                                                                  rdfs:subClassOf dr:Organization_Lobe ;
-                                                                 rdfs:comment "Large companies have central fuctions like the Finance or corporate suppyl chain department."@en ;
+                                                                 rdfs:comment "Large companies have central functions like the Finance or corporate supply chain department."@en ;
                                                                  rdfs:label "Central Function"@en .
 
 
@@ -22054,7 +22054,7 @@ ecsel-dr-PROD:Not_Released_Product rdf:type owl:Class ;
 ###  http://www.w3id.org/ecsel-dr-PROD#Organization
 ecsel-dr-PROD:Organization rdf:type owl:Class ;
                            rdfs:subClassOf dr:Organization_Lobe ;
-                           rdfs:comment "An organization is en entity comprising multiple people. In SSC, this class mainly refers to businesses."@en ;
+                           rdfs:comment "An organization is an entity comprising multiple people. In SSC, this class mainly refers to businesses."@en ;
                            rdfs:isDefinedBy "http://www.example.org/semanticSupplyChain/" ;
                            rdfs:label "Organization"@en .
 
@@ -22573,7 +22573,7 @@ ecsel-dr-Planning:Yield rdf:type owl:Class ;
 <http://www.w3id.org/ecsel-dr-Planning-DF#Order_Repromising_Plan> rdf:type owl:Class ;
                                                                   rdfs:subClassOf <http://www.w3id.org/ecsel-dr-Planning-DF#Order_Delivery_Plan> ;
                                                                   rdfs:label "Order Repromising Plan"@en ;
-                                                                  skos:definition "Orde Repromising Plan is the (daily) updated or confirmation plan based on (daily) updated ATP and (daily) updated orders" .
+                                                                  skos:definition "Order Repromising Plan is the (daily) updated or confirmation plan based on (daily) updated ATP and (daily) updated orders" .
 
 
 ###  http://www.w3id.org/ecsel-dr-Planning-DF#Planning
@@ -22967,7 +22967,7 @@ Example: mathematical entities: formal semantics elements, regions within dimens
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#Control_Method
 <http://www.w3id.org/ecsel-dr-Power-PWR#Control_Method> rdf:type owl:Class ;
                                                         rdfs:subClassOf dr:Power_Lobe ;
-                                                        rdfs:comment "It is the method used to turn on, turn off , increaseing, and decreasing output current/voltage." ;
+                                                        rdfs:comment "It is the method used to turn on, turn off , increasing, and decreasing output current/voltage." ;
                                                         rdfs:isDefinedBy "Power Electronic book" ;
                                                         rdfs:label "Control Method" .
 
@@ -23188,7 +23188,7 @@ This classification is done by The Global Industry Classification Standard (GICS
 <http://www.w3id.org/ecsel-dr-Power-PWR#Length> rdf:type owl:Class ;
                                                 rdfs:subClassOf <http://www.w3id.org/ecsel-dr-Power-PWR#Geometric_Dimension> ;
                                                 rdfs:comment "The length of an entity"@en ;
-                                                rdfs:label "Lenght"@en .
+                                                rdfs:label "Length"@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#Materials
@@ -23610,7 +23610,7 @@ Boost Converter process: boosting: is a process that results in the estimation, 
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#Voltage_Controlled
 <http://www.w3id.org/ecsel-dr-Power-PWR#Voltage_Controlled> rdf:type owl:Class ;
                                                             rdfs:subClassOf <http://www.w3id.org/ecsel-dr-Power-PWR#Control_Method> ;
-                                                            rdfs:comment "by applying the voltage between Gate and Sourcet o turn on, turn off the MOSFET, and  increaseing, decreasing  the MOSFET output current." ;
+                                                            rdfs:comment "by applying the voltage between Gate and Source to turn on, turn off the MOSFET, and  increasing, decreasing  the MOSFET output current." ;
                                                             rdfs:isDefinedBy "rdfs:isDefinedBy" ;
                                                             rdfs:label "Voltage Controlled" .
 
@@ -23632,7 +23632,7 @@ Boost Converter process: boosting: is a process that results in the estimation, 
 ###  http://www.w3id.org/ecsel-dr-RAMI40#Admin_Shell
 ecsel-dr-RAMI40:Admin_Shell rdf:type owl:Class ;
                             rdfs:subClassOf dr:System_Lobe ;
-                            rdfs:comment "Andmin Shell represents and describes an asset elecrtonically in a standardized manner"@en ;
+                            rdfs:comment "Admin Shell represents and describes an asset electronically in a standardized manner"@en ;
                             rdfs:label "Admin Shell"@en .
 
 
