@@ -8003,10 +8003,6 @@ ecsel-dr-SO:uses_one_or_more_technology rdf:type owl:ObjectProperty ;
                                                   rdfs:range dr:Customer .
 
 
-###  http://www.w3id.org/ecsel-dr/qualty/is_executed_on
-<http://www.w3id.org/ecsel-dr/qualty/is_executed_on> rdf:type owl:ObjectProperty ;
-                                                     rdfs:domain <http://www.w3id.org/ecsel-dr/quality/Failure_Analysis> ;
-                                                     rdfs:range <http://www.w3id.org/digital-reference/quality/Product_Instance> .
 
 
 #################################################################
