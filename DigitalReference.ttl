@@ -20486,7 +20486,7 @@ ecsel-dr-GDM:Shift_Attendance rdf:type owl:Class ;
 
 ###  http://www.w3id.org/ecsel-dr-GDM#Supply_Chain
 ecsel-dr-GDM:Supply_Chain rdf:type owl:Class ;
-                          rdfs:subClassOf ecsel-dr-DF:Supply_Contract ,
+                          rdfs:subClassOf dr:Supply_Chain_Lobe ,
                                           [ rdf:type owl:Restriction ;
                                             owl:onProperty ecsel-dr-GDM:has_cycle_time_commitment ;
                                             owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
