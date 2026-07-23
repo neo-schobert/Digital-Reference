@@ -22700,7 +22700,7 @@ The supplier (Vendor) is responsible to maintain his stock within a defined min/
 
 ###  http://www.w3id.org/ecsel-dr-Planning-SCP#EDI_Forecast
 <http://www.w3id.org/ecsel-dr-Planning-SCP#EDI_Forecast> rdf:type owl:Class ;
-                                                         rdfs:subClassOf dr:Order ;
+                                                         rdfs:subClassOf <http://www.w3id.org/ecsel-dr-Planning-SCP#Forecast> ;
                                                          rdfs:comment "The EDI Forecast Universe is a Data Mart that was started in 2010 (?) to support Forecast Accuracy  analysis"@en ;
                                                          rdfs:label "EDI Forecast"@en .
 
