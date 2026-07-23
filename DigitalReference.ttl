@@ -7098,7 +7098,7 @@ ecsel-dr-Planning:uses_planning_approach rdf:type owl:ObjectProperty ;
 <http://www.w3id.org/ecsel-dr-Power-PWR#has_process_input> rdf:type owl:ObjectProperty ;
                                                            rdfs:domain <http://www.w3id.org/ecsel-dr-Power-PWR#Process> ;
                                                            rdfs:range <http://www.w3id.org/ecsel-dr-Power-PWR#Process_Input> ;
-                                                           owl:maxCardinality "has process input"@en .
+                                                           rdfs:label "has process input"@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-Power-PWR#has_process_output
