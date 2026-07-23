@@ -1,74 +1,79 @@
 # Digital Reference Explorer
 
-Visualisation et exploration de l'ontologie **Digital Reference**
-(`../DigitalReference.ttl` + ses dépendances SOSA/SSN/Time).
+Visualization and exploration of the **Digital Reference** ontology
+(`../DigitalReference.ttl` + its SOSA/SSN/Time dependencies).
 
-## Lancement
+## Getting started
 
 ```bash
 ./start.sh
 ```
 
-Le script :
+The script:
 
-1. localise Node.js (ou explique comment l'installer sans droits root) ;
-2. installe les dépendances npm manquantes (avec diagnostic clair en cas
-   d'échec : permissions, réseau/proxy, disque plein) ;
-3. démarre le **backend** en arrière-plan (port `3178`, log dans
-   `.logs/backend.log`) ;
-4. démarre le **frontend** Vite (port `5173`) et ouvre le navigateur.
+1. locates Node.js (or explains how to install it without root privileges);
+2. installs any missing npm dependencies (with clear diagnostics on
+   failure: permissions, network/proxy, disk full);
+3. starts the **backend** in the background (port `3178`, log in
+   `.logs/backend.log`);
+4. starts the **frontend** with Vite (port `5173`) and opens the browser.
 
-`Ctrl+C` arrête le frontend **et** le backend. Pour tout arrêter à la main :
-`./stop.sh`. Ports personnalisables : `DR_BACKEND_PORT=… DR_FRONTEND_PORT=… ./start.sh`.
+`Ctrl+C` stops the frontend **and** the backend. To stop everything
+manually: `./stop.sh`. Custom ports:
+`DR_BACKEND_PORT=… DR_FRONTEND_PORT=… ./start.sh`.
 
 ## Architecture
 
 ```
 analysis/
-├── backend/          Node + tsx (TypeScript) — Express + oxigraph (SPARQL en mémoire)
+├── backend/          Node + tsx (TypeScript) — Express + oxigraph (in-memory SPARQL)
 │   └── src/
-│       ├── ontology.ts   chargement TTL, graphe classes/propriétés, lobes, SPARQL, stub chat
-│       └── server.ts     endpoints REST
-├── frontend/         Vite + React (TSX) — visualisation force-directed sur canvas
+│       ├── ontology.ts   TTL loading, class/property graph, lobes, SPARQL, chat stub
+│       └── server.ts     REST endpoints
+├── frontend/         Vite + React (TSX) — force-directed canvas visualization
 │   └── src/
-│       ├── tabs/GraphTab.tsx    onglet Graphe (WebVOWL-like)
-│       ├── tabs/SparqlTab.tsx   onglet SPARQL (liste + graphe + exports)
-│       ├── tabs/ChatTab.tsx     onglet ChatBot (interface, GraphRAG à brancher)
-│       └── components/NetworkCanvas.tsx  rendu force-graph partagé
+│       ├── tabs/GraphTab.tsx    Graph tab (WebVOWL-like, 3D/2D)
+│       ├── tabs/SparqlTab.tsx   SPARQL tab (list + graph views + exports)
+│       ├── tabs/ChatTab.tsx     ChatBot tab (UI only, GraphRAG to be plugged in)
+│       └── components/          shared 2D/3D force-graph renderers
 ├── start.sh / stop.sh
-└── .logs/            journaux et PID (générés)
+└── .logs/            logs and PID files (generated)
 ```
 
-## API du backend
+## Backend API
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/health` | sonde de vie |
-| `GET /api/meta` | métadonnées : ontologie, modules (namespaces), **lobes**, préfixes, fichiers |
-| `GET /api/graph?lobes=…&modules=…&edges=subclass,property` | sous-graphe filtré (classes + arêtes) |
-| `GET /api/files` / `GET /api/files/<nom>` | liste et téléchargement des fichiers TTL sources |
-| `POST /api/sparql` `{query}` | SELECT / ASK / CONSTRUCT / DESCRIBE (lecture seule, moteur oxigraph) |
-| `POST /api/chat` `{messages}` | **stub** du chatbot — à remplacer par le moteur GraphRAG |
+| `GET /api/health` | liveness probe |
+| `GET /api/meta` | metadata: ontology info, modules (namespaces), **lobes**, prefixes, files |
+| `GET /api/graph?lobes=…&modules=…&edges=subclass,property` | filtered subgraph (classes + edges) |
+| `GET /api/files` / `GET /api/files/<name>` | list and download the source TTL files |
+| `POST /api/sparql` `{query}` | SELECT / ASK / CONSTRUCT / DESCRIBE (read-only, oxigraph engine) |
+| `POST /api/chat` `{messages}` | chatbot **stub** — to be replaced by the GraphRAG engine |
 
-## Onglets du frontend
+## Frontend tabs
 
-- **Graphe** — rendu force-directed type WebVOWL : classes colorées par
-  **lobe** (les 15 lobes officiels du Digital Reference, calculés par
-  fermeture `subClassOf*`) ou par **module** (namespace `ecsel-dr-*`),
-  cases à cocher pour sélectionner les lobes affichés, arêtes `subClassOf`
-  (pointillés) et object properties (labels au zoom), recherche, panneau de
-  détails (commentaire, attributs, relations), téléchargement des TTL.
-- **SPARQL** — éditeur (Ctrl+Entrée), requêtes d'exemple, résultats en
-  **liste** (tableau paginé, sélection de lignes) ou en **graphe**, export
-  CSV / TSV / JSON / Turtle (de la sélection ou de tout le résultat).
-- **ChatBot** — interface complète (suggestions, markdown, indicateur de
-  frappe). Le backend répond via une recherche lexicale de démonstration :
-  brancher le futur moteur GraphRAG dans `backend/src/ontology.ts`
-  (`chatStub`) ou directement sur `POST /api/chat`.
+- **Graph** — WebVOWL-like force-directed rendering: classes colored by
+  **lobe** (the 15 official Digital Reference lobes, computed through the
+  `subClassOf*` closure) or by **module** (`ecsel-dr-*` namespace),
+  checkboxes to select which lobes are displayed (instant visibility
+  toggling — node positions are preserved), `subClassOf` edges (dashed) and
+  object properties (labels on zoom), clickable nodes AND edges with a
+  details panel (definition, attributes, navigable relations), search, TTL
+  downloads. Default **3D view** with Blender-style navigation (right/middle
+  click to rotate around the selection, left click to pan, clickable axis
+  gizmo), 2D view available, gentle perpetual motion, elastic node dragging.
+- **SPARQL** — editor (Ctrl+Enter), sample queries, results as a **list**
+  (paginated table, row selection) or as a **graph**, export to
+  CSV / TSV / JSON / Turtle (of the selection or the whole result set).
+- **ChatBot** — complete interface (suggestions, markdown, typing
+  indicator). The backend currently answers through a demo lexical search:
+  plug the future GraphRAG engine into `backend/src/ontology.ts`
+  (`chatStub`) or directly behind `POST /api/chat`.
 
-## Brancher le GraphRAG plus tard
+## Plugging in GraphRAG later
 
-Le contrat est minimal : `POST /api/chat` reçoit
-`{messages: [{role: "user"|"assistant", content: string}]}` et renvoie
-`{reply: string}` (markdown). Remplacer l'implémentation de `chatStub` —
-le frontend n'a pas besoin de changer.
+The contract is minimal: `POST /api/chat` receives
+`{messages: [{role: "user"|"assistant", content: string}]}` and returns
+`{reply: string}` (markdown). Replace the `chatStub` implementation —
+the frontend does not need to change.
