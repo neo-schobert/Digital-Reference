@@ -1474,7 +1474,7 @@ dr:fulfilled_by_demand_fulfillment rdf:type owl:ObjectProperty ;
                                    owl:inverseOf dr:fulfills_demand_snapshot ;
                                    rdfs:domain ecsel-dr-SO:Demand_Snapshot ;
                                    rdfs:range ecsel-dr-OM:Demand_Fulfillment ;
-                                   rdfs:label "fulfilled by demand fulfillement"@en .
+                                   rdfs:label "fulfilled by demand fulfillment"@en .
 
 
 ###  http://www.w3id.org/ecsel-dr#fulfills_demand_snapshot
@@ -20708,9 +20708,9 @@ ecsel-dr-OM:Customer_Plant_Data rdf:type owl:Class ;
 ###  http://www.w3id.org/ecsel-dr-OM#Demand_Fulfillment
 ecsel-dr-OM:Demand_Fulfillment rdf:type owl:Class ;
                                rdfs:subClassOf dr:Supply_Chain_Lobe ;
-                               rdfs:comment "DEMAND FULFILLEMENT is the process of meeting a customer´s demand for product or services by fulfilling their request." ,
-                                            "DEMAND FULFILLEMENT refers to the set of processes by which a company responds to customer demand by delivering products or services. In the semiconductor supply chain, it includes order promising, product allocation, scheduling, and ensuring timely delivery. It represents the interface between the supply chain and external customers, ensuring that demand is met in accordance with business rules and available resources. It represents the interface between the supply chain and its external customers.” It also connects closely with Available to Promise (ATP) mechanisms that decide what can be committed to customers based on current and projected inventory and capacity." ;
-                               rdfs:label "Demand Fulfillement"@en .
+                               rdfs:comment "DEMAND FULFILLMENT is the process of meeting a customer´s demand for product or services by fulfilling their request." ,
+                                            "DEMAND FULFILLMENT refers to the set of processes by which a company responds to customer demand by delivering products or services. In the semiconductor supply chain, it includes order promising, product allocation, scheduling, and ensuring timely delivery. It represents the interface between the supply chain and external customers, ensuring that demand is met in accordance with business rules and available resources. It represents the interface between the supply chain and its external customers. It also connects closely with Available to Promise (ATP) mechanisms that decide what can be committed to customers based on current and projected inventory and capacity." ;
+                               rdfs:label "Demand Fulfillment"@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-OM#Open_Order
