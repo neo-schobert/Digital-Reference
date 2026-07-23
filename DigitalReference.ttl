@@ -5662,10 +5662,16 @@ ecsel-dr-PMV:has_as_input rdf:type owl:ObjectProperty ;
 ecsel-dr-PMV:has_as_output rdf:type owl:ObjectProperty ;
                            owl:inverseOf ecsel-dr-PMV:is_output_of ;
                            rdf:type owl:InverseFunctionalProperty ;
-                           rdfs:domain dr:Task ,
-                                       ecsel-dr-PMV:Function ;
-                           rdfs:range ecsel-dr-PMV:Output ,
-                                      ecsel-dr-PMV:Technical_Term ;
+                           rdfs:domain [ rdf:type owl:Class ;
+                                         owl:unionOf ( dr:Task
+                                                       ecsel-dr-PMV:Function
+                                                     )
+                                       ] ;
+                           rdfs:range [ rdf:type owl:Class ;
+                                        owl:unionOf ( ecsel-dr-PMV:Output
+                                                      ecsel-dr-PMV:Technical_Term
+                                                    )
+                                      ] ;
                            rdfs:comment "A function in a process flow produces a physical or non-physical output." ,
                                         "A process step can have technical term(s) as output." ;
                            rdfs:label "has as output"@en ;
@@ -5910,10 +5916,16 @@ ecsel-dr-PMV:is_linked_by rdf:type owl:ObjectProperty ;
 ###  http://www.w3id.org/ecsel-dr-PMV#is_output_of
 ecsel-dr-PMV:is_output_of rdf:type owl:ObjectProperty ,
                                    owl:FunctionalProperty ;
-                          rdfs:domain ecsel-dr-PMV:Output ,
-                                      ecsel-dr-PMV:Technical_Term ;
-                          rdfs:range dr:Task ,
-                                     ecsel-dr-PMV:Function ;
+                          rdfs:domain [ rdf:type owl:Class ;
+                                        owl:unionOf ( ecsel-dr-PMV:Output
+                                                      ecsel-dr-PMV:Technical_Term
+                                                    )
+                                      ] ;
+                          rdfs:range [ rdf:type owl:Class ;
+                                       owl:unionOf ( dr:Task
+                                                     ecsel-dr-PMV:Function
+                                                   )
+                                     ] ;
                           rdfs:comment "A software independent business object may be output of a process step." ,
                                        "Physical or non-physical output is produced by a function in a process flow." ;
                           rdfs:label "is output of"@en ;
@@ -5946,14 +5958,17 @@ ecsel-dr-PMV:is_processed_by_human_output rdf:type owl:ObjectProperty ;
 ###  http://www.w3id.org/ecsel-dr-PMV#is_represented_by
 ecsel-dr-PMV:is_represented_by rdf:type owl:ObjectProperty ;
                                owl:inverseOf ecsel-dr-PMV:represents ;
-                               rdfs:domain dr:Task ,
-                                           [ rdf:type owl:Class ;
-                                             owl:unionOf ( ecsel-dr-PMV:Business_Process_Flow
+                               rdfs:domain [ rdf:type owl:Class ;
+                                             owl:unionOf ( dr:Task
+                                                           ecsel-dr-PMV:Business_Process_Flow
                                                            ecsel-dr-PMV:Value_Added_Chain_Diagram
                                                          )
                                            ] ;
-                               rdfs:range ecsel-dr-PMV:Business_Process_Activity ,
-                                          ecsel-dr-PMV:Screen ;
+                               rdfs:range [ rdf:type owl:Class ;
+                                            owl:unionOf ( ecsel-dr-PMV:Business_Process_Activity
+                                                          ecsel-dr-PMV:Screen
+                                                        )
+                                          ] ;
                                rdfs:comment "Represents the inverse property of represents." ;
                                rdfs:label "is represented by" ;
                                skos:altLabel "repres" .
@@ -6107,11 +6122,14 @@ ecsel-dr-PMV:relevant_to rdf:type owl:ObjectProperty ;
 
 ###  http://www.w3id.org/ecsel-dr-PMV#represents
 ecsel-dr-PMV:represents rdf:type owl:ObjectProperty ;
-                        rdfs:domain ecsel-dr-PMV:Business_Process_Activity ,
-                                    ecsel-dr-PMV:Screen ;
-                        rdfs:range dr:Task ,
-                                   [ rdf:type owl:Class ;
-                                     owl:unionOf ( ecsel-dr-PMV:Business_Process_Flow
+                        rdfs:domain [ rdf:type owl:Class ;
+                                      owl:unionOf ( ecsel-dr-PMV:Business_Process_Activity
+                                                    ecsel-dr-PMV:Screen
+                                                  )
+                                    ] ;
+                        rdfs:range [ rdf:type owl:Class ;
+                                     owl:unionOf ( dr:Task
+                                                   ecsel-dr-PMV:Business_Process_Flow
                                                    ecsel-dr-PMV:Value_Added_Chain_Diagram
                                                  )
                                    ] ;
