@@ -12750,8 +12750,11 @@ ecsel-dr-PROD:halogen_free rdf:type owl:DatatypeProperty ;
 
 ###  http://www.w3id.org/ecsel-dr-PROD#location
 ecsel-dr-PROD:location rdf:type owl:DatatypeProperty ;
-                       rdfs:domain dr:Product ,
-                                   ecsel-dr-PROD:Planning_Element ;
+                       rdfs:domain [ rdf:type owl:Class ;
+                                     owl:unionOf ( dr:Product
+                                                   ecsel-dr-PROD:Planning_Element
+                                                 )
+                                   ] ;
                        rdfs:range xsd:string ;
                        rdfs:comment "A Location within Infineon’s internal supply chain is a local area where products are manufactured or stored."@en ;
                        rdfs:label "location"@en .
