@@ -9427,7 +9427,7 @@ ecsel-dr-CO2Savings:delivery_gross_weight rdf:type owl:DatatypeProperty ;
 
 ###  http://www.w3id.org/ecsel-dr-CO2Savings#distance_between_sender_and_recipient
 ecsel-dr-CO2Savings:distance_between_sender_and_recipient rdf:type owl:DatatypeProperty ;
-                                                          rdfs:label "distance between sender and receipent"@en .
+                                                          rdfs:label "distance between sender and recipient"@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-CO2Savings#distribution_losses
