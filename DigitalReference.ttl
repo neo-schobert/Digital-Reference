@@ -15719,7 +15719,7 @@ ecsel-dr-AT:Bluetooth rdf:type owl:Class ;
 ecsel-dr-AT:Bridge rdf:type owl:Class ;
                    rdfs:subClassOf ecsel-dr-AT:Communication_Device ;
                    rdfs:label "Bridge"@en ;
-                   skos:definition "Bridge - connects two or more network segments or communication domains to enable reliable data exchange for power-system control, monitoring and management. It may operate at link or network layers to forward, filter or translate frames/packets, provide protocol conversion or gateway functions, buffer and aggregate data, and offer galvanic isolation, timing/synchronization and security features."@en .
+                   skos:definition "Bridge - connects two or more network segments or communication domains to enable reliable data exchange for control, monitoring and management. It may operate at link or network layers to forward, filter or translate frames/packets, provide protocol conversion or gateway functions, buffer and aggregate data, and offer galvanic isolation, timing/synchronization and security features."@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-AT#CAD_System
@@ -16180,7 +16180,7 @@ ecsel-dr-AT:HTTPS rdf:type owl:Class ;
 ecsel-dr-AT:Hub rdf:type owl:Class ;
                 rdfs:subClassOf ecsel-dr-AT:Communication_Device ;
                 rdfs:label "Hub"@en ;
-                skos:definition "Hub - concentrates multiple communication links into a single physical or logical point to enable data distribution and aggregation among connected devices within a power-domain network."@en .
+                skos:definition "Hub - concentrates multiple communication links into a single physical or logical point to enable data distribution and aggregation among connected devices within a network."@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-AT#IEC
@@ -16401,7 +16401,7 @@ ecsel-dr-AT:Industrial_WLAN rdf:type owl:Class ;
 ecsel-dr-AT:Industry_PC rdf:type owl:Class ;
                         rdfs:subClassOf ecsel-dr-AT:Control_Device ;
                         rdfs:label "Industry PC"@en ;
-                        skos:definition "Industry_PC - representing an industrial grade programmable computing system used to execute control logic, supervise power processes, and interface with sensors, actuators and fieldbus or networked devices."@en .
+                        skos:definition "Industry_PC - representing an industrial grade programmable computing system used to execute control logic, supervise industrial processes, and interface with sensors, actuators and fieldbus or networked devices."@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-AT#JSON
@@ -16874,7 +16874,7 @@ ecsel-dr-AT:Programmable_Logic_Controller rdf:type owl:Class ;
 ecsel-dr-AT:Proxy rdf:type owl:Class ;
                   rdfs:subClassOf ecsel-dr-AT:Communication_Device ;
                   rdfs:label "Proxy"@en ;
-                  skos:definition "Proxy - an intermediary between devices, networks or services to forward, mediate, translate or control communications for power-system monitoring, control and management."@en .
+                  skos:definition "Proxy - an intermediary between devices, networks or services to forward, mediate, translate or control communications for monitoring, control and management."@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-AT#RDF
