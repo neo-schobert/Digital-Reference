@@ -13,7 +13,7 @@ The base namespace of the ontology is
 The ontology further involves the following namespaces
 
 ```turtle
-@prefix ecsel-dr-AH: <http://www.w3id.org/ecsel-dr-AH#> .
+@prefix ecsel-dr-Cloud-AH: <http://www.w3id.org/ecsel-dr-Cloud-AH#> .
 @prefix ecsel-dr-AT: <http://www.w3id.org/ecsel-dr-AT#> .
 @prefix ecsel-dr-BMS: <http://www.w3id.org/ecsel-dr-BMS#> .
 @prefix ecsel-dr-CO2Savings: <http://www.w3id.org/ecsel-dr-CO2Savings#> .
@@ -22,13 +22,15 @@ The ontology further involves the following namespaces
 @prefix ecsel-dr-Incoterms: <http://www.w3id.org/ecsel-dr-Incoterms#> .
 @prefix ecsel-dr-OM: <http://www.w3id.org/ecsel-dr-OM#> .
 @prefix ecsel-dr-OOSMP: <http://www.w3id.org/ecsel-dr-OOSMP#> .
-@prefix ecsel-dr-ORG: <http://www.w3id.org/ecsel-dr-ORG#> .
+@prefix ecsel-dr-Organization: <http://www.w3id.org/ecsel-dr-Organization#> .
+@prefix ecsel-dr-Organization-ORG: <http://www.w3id.org/ecsel-dr-Organization-ORG#> .
 @prefix ecsel-dr-Planning: <http://www.w3id.org/ecsel-dr-Planning#> .
 @prefix ecsel-dr-PMV: <http://www.w3id.org/ecsel-dr-PMV#> .
 @prefix ecsel-dr-PROD: <http://www.w3id.org/ecsel-dr-PROD#> .
-@prefix ecsel-dr-PWR: <http://www.w3id.org/ecsel-dr-PWR#> .
+@prefix ecsel-dr-Power-PWR: <http://www.w3id.org/ecsel-dr-Power-PWR#> .
 @prefix ecsel-dr-RAMI40: <http://www.w3id.org/ecsel-dr-RAMI40#> .
-@prefix ecsel-dr-SCP: <http://www.w3id.org/ecsel-dr-SCP#> .
+@prefix ecsel-dr-Planning-DF: <http://www.w3id.org/ecsel-dr-Planning-DF#> .
+@prefix ecsel-dr-Planning-SCP: <http://www.w3id.org/ecsel-dr-Planning-SCP#> .
 @prefix ecsel-dr-SO: <http://www.w3id.org/ecsel-dr-SO#> .
 ```
 
