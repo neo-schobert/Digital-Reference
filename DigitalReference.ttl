@@ -150,14 +150,6 @@ rdfs:label rdfs:comment "Any name of a concept"@en ;
 xsd:pattern rdf:type owl:AnnotationProperty .
 
 
-###  http://www.w3.org/2002/07/owl#cardinality
-owl:cardinality rdf:type owl:AnnotationProperty .
-
-
-###  http://www.w3.org/2002/07/owl#maxCardinality
-owl:maxCardinality rdf:type owl:AnnotationProperty .
-
-
 ###  http://www.w3.org/2004/02/skos/core#altLabel
 skos:altLabel rdf:type owl:AnnotationProperty ;
               rdfs:comment "The alternative name of a concept, e.g. a misspelled name,  a concept can have one or more alternative names."@en ;
