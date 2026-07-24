@@ -7199,7 +7199,7 @@ ecsel-dr-Power-PWR:is_working_as rdf:type owl:ObjectProperty ;
 ecsel-dr-Power-PWR:makes_switching rdf:type owl:ObjectProperty ;
                                                          rdfs:domain ecsel-dr-Power-PWR:Amplification_Switching_Device ;
                                                          rdfs:range ecsel-dr-Power-PWR:The_Method_Of_The_Device_Function ;
-                                                         rdfs:comment "the method name, e.g.:observation and amlification"@en ;
+                                                         rdfs:comment "the method name, e.g.:observation and amplification"@en ;
                                                          rdfs:label "makes switching"@en .
 
 
