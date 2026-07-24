@@ -150,14 +150,6 @@ rdfs:label rdfs:comment "Any name of a concept"@en ;
 xsd:pattern rdf:type owl:AnnotationProperty .
 
 
-###  http://www.w3.org/2002/07/owl#cardinality
-owl:cardinality rdf:type owl:AnnotationProperty .
-
-
-###  http://www.w3.org/2002/07/owl#maxCardinality
-owl:maxCardinality rdf:type owl:AnnotationProperty .
-
-
 ###  http://www.w3.org/2004/02/skos/core#altLabel
 skos:altLabel rdf:type owl:AnnotationProperty ;
               rdfs:comment "The alternative name of a concept, e.g. a misspelled name,  a concept can have one or more alternative names."@en ;
@@ -5581,9 +5573,9 @@ ecsel-dr-PMV:controls_function rdf:type owl:ObjectProperty ;
 ###  http://www.w3id.org/ecsel-dr-PMV#creates_event
 ecsel-dr-PMV:creates_event rdf:type owl:ObjectProperty ;
                            owl:inverseOf ecsel-dr-PMV:is_created_by ;
-                           rdfs:domain ecsel-dr-PMV:Modelling_Function_Object ,
-                                       [ rdf:type owl:Class ;
-                                         owl:unionOf ( dr:Task
+                           rdfs:domain [ rdf:type owl:Class ;
+                                         owl:unionOf ( ecsel-dr-PMV:Modelling_Function_Object
+                                                       dr:Task
                                                        ecsel-dr-PMV:Process_Interface
                                                      )
                                        ] ;
@@ -5638,10 +5630,16 @@ ecsel-dr-PMV:flow rdf:type owl:ObjectProperty ;
 ###  http://www.w3id.org/ecsel-dr-PMV#follows
 ecsel-dr-PMV:follows rdf:type owl:ObjectProperty ;
                      owl:inverseOf ecsel-dr-PMV:is_predecessor_of ;
-                     rdfs:domain dr:Task ,
-                                 ecsel-dr-PMV:Modelling_Function_Object ;
-                     rdfs:range dr:Task ,
-                                ecsel-dr-PMV:Modelling_Function_Object ;
+                     rdfs:domain [ rdf:type owl:Class ;
+                                   owl:unionOf ( dr:Task
+                                                 ecsel-dr-PMV:Modelling_Function_Object
+                                               )
+                                 ] ;
+                     rdfs:range [ rdf:type owl:Class ;
+                                  owl:unionOf ( dr:Task
+                                                ecsel-dr-PMV:Modelling_Function_Object
+                                              )
+                                ] ;
                      rdfs:comment "A process step follows a process step. The connector is used to represent the chronological order in an EPC." ;
                      rdfs:label "follows"@en ;
                      skos:altLabel "follow" .
@@ -5812,8 +5810,11 @@ ecsel-dr-PMV:is_activated_by_task rdf:type owl:ObjectProperty ;
 ecsel-dr-PMV:is_assigned_to rdf:type owl:ObjectProperty ;
                             owl:inverseOf ecsel-dr-PMV:leads_to_rule ;
                             rdfs:domain ecsel-dr-PMV:Rule ;
-                            rdfs:range dr:Task ,
-                                       ecsel-dr-PMV:Modelling_Function_Object ;
+                            rdfs:range [ rdf:type owl:Class ;
+                                         owl:unionOf ( dr:Task
+                                                       ecsel-dr-PMV:Modelling_Function_Object
+                                                     )
+                                       ] ;
                             rdfs:comment "A rule is assigned to a process step. The connector is used to represent the chronological order in an EPC." ;
                             rdfs:label "is assigned to"@en ;
                             skos:altLabel "assign" .
@@ -5845,9 +5846,9 @@ ecsel-dr-PMV:is_controlled_by_goal rdf:type owl:ObjectProperty ,
 ###  http://www.w3id.org/ecsel-dr-PMV#is_created_by
 ecsel-dr-PMV:is_created_by rdf:type owl:ObjectProperty ;
                            rdfs:domain ecsel-dr-PMV:Event ;
-                           rdfs:range ecsel-dr-PMV:Modelling_Function_Object ,
-                                      [ rdf:type owl:Class ;
-                                        owl:unionOf ( dr:Task
+                           rdfs:range [ rdf:type owl:Class ;
+                                        owl:unionOf ( ecsel-dr-PMV:Modelling_Function_Object
+                                                      dr:Task
                                                       ecsel-dr-PMV:Process_Interface
                                                     )
                                       ] ;
@@ -5933,10 +5934,16 @@ ecsel-dr-PMV:is_output_of rdf:type owl:ObjectProperty ,
 
 ###  http://www.w3id.org/ecsel-dr-PMV#is_predecessor_of
 ecsel-dr-PMV:is_predecessor_of rdf:type owl:ObjectProperty ;
-                               rdfs:domain dr:Task ,
-                                           ecsel-dr-PMV:Modelling_Function_Object ;
-                               rdfs:range dr:Task ,
-                                          ecsel-dr-PMV:Modelling_Function_Object ;
+                               rdfs:domain [ rdf:type owl:Class ;
+                                             owl:unionOf ( dr:Task
+                                                           ecsel-dr-PMV:Modelling_Function_Object
+                                                         )
+                                           ] ;
+                               rdfs:range [ rdf:type owl:Class ;
+                                            owl:unionOf ( dr:Task
+                                                          ecsel-dr-PMV:Modelling_Function_Object
+                                                        )
+                                          ] ;
                                rdfs:comment "The connector is used to represent the chronological order of value chain elements." ;
                                rdfs:label "is predecessor of"@en ;
                                skos:altLabel "predecessor" .
@@ -6065,8 +6072,11 @@ ecsel-dr-PMV:leads_to_event rdf:type owl:ObjectProperty ;
 ###  http://www.w3id.org/ecsel-dr-PMV#leads_to_rule
 ecsel-dr-PMV:leads_to_rule rdf:type owl:ObjectProperty ;
                            rdfs:subPropertyOf ecsel-dr-PMV:leads_to ;
-                           rdfs:domain dr:Task ,
-                                       ecsel-dr-PMV:Modelling_Function_Object ;
+                           rdfs:domain [ rdf:type owl:Class ;
+                                         owl:unionOf ( dr:Task
+                                                       ecsel-dr-PMV:Modelling_Function_Object
+                                                     )
+                                       ] ;
                            rdfs:range ecsel-dr-PMV:Rule ;
                            rdfs:comment "A process step leads to a rule. The connector is used to represent the chronological order in an EPC." ;
                            rdfs:label "leads to rule"@en ;
@@ -7199,7 +7209,7 @@ ecsel-dr-Power-PWR:is_working_as rdf:type owl:ObjectProperty ;
 ecsel-dr-Power-PWR:makes_switching rdf:type owl:ObjectProperty ;
                                                          rdfs:domain ecsel-dr-Power-PWR:Amplification_Switching_Device ;
                                                          rdfs:range ecsel-dr-Power-PWR:The_Method_Of_The_Device_Function ;
-                                                         rdfs:comment "the method name, e.g.:observation and amlification"@en ;
+                                                         rdfs:comment "the method name, e.g.:observation and amplification"@en ;
                                                          rdfs:label "makes switching"@en .
 
 
@@ -9427,7 +9437,7 @@ ecsel-dr-CO2Savings:delivery_gross_weight rdf:type owl:DatatypeProperty ;
 
 ###  http://www.w3id.org/ecsel-dr-CO2Savings#distance_between_sender_and_recipient
 ecsel-dr-CO2Savings:distance_between_sender_and_recipient rdf:type owl:DatatypeProperty ;
-                                                          rdfs:label "distance between sender and receipent"@en .
+                                                          rdfs:label "distance between sender and recipient"@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-CO2Savings#distribution_losses
@@ -15719,7 +15729,7 @@ ecsel-dr-AT:Bluetooth rdf:type owl:Class ;
 ecsel-dr-AT:Bridge rdf:type owl:Class ;
                    rdfs:subClassOf ecsel-dr-AT:Communication_Device ;
                    rdfs:label "Bridge"@en ;
-                   skos:definition "Bridge - connects two or more network segments or communication domains to enable reliable data exchange for power-system control, monitoring and management. It may operate at link or network layers to forward, filter or translate frames/packets, provide protocol conversion or gateway functions, buffer and aggregate data, and offer galvanic isolation, timing/synchronization and security features."@en .
+                   skos:definition "Bridge - connects two or more network segments or communication domains to enable reliable data exchange for control, monitoring and management. It may operate at link or network layers to forward, filter or translate frames/packets, provide protocol conversion or gateway functions, buffer and aggregate data, and offer galvanic isolation, timing/synchronization and security features."@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-AT#CAD_System
@@ -16180,7 +16190,7 @@ ecsel-dr-AT:HTTPS rdf:type owl:Class ;
 ecsel-dr-AT:Hub rdf:type owl:Class ;
                 rdfs:subClassOf ecsel-dr-AT:Communication_Device ;
                 rdfs:label "Hub"@en ;
-                skos:definition "Hub - concentrates multiple communication links into a single physical or logical point to enable data distribution and aggregation among connected devices within a power-domain network."@en .
+                skos:definition "Hub - concentrates multiple communication links into a single physical or logical point to enable data distribution and aggregation among connected devices within a network."@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-AT#IEC
@@ -16401,7 +16411,7 @@ ecsel-dr-AT:Industrial_WLAN rdf:type owl:Class ;
 ecsel-dr-AT:Industry_PC rdf:type owl:Class ;
                         rdfs:subClassOf ecsel-dr-AT:Control_Device ;
                         rdfs:label "Industry PC"@en ;
-                        skos:definition "Industry_PC - representing an industrial grade programmable computing system used to execute control logic, supervise power processes, and interface with sensors, actuators and fieldbus or networked devices."@en .
+                        skos:definition "Industry_PC - representing an industrial grade programmable computing system used to execute control logic, supervise industrial processes, and interface with sensors, actuators and fieldbus or networked devices."@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-AT#JSON
@@ -16874,7 +16884,7 @@ ecsel-dr-AT:Programmable_Logic_Controller rdf:type owl:Class ;
 ecsel-dr-AT:Proxy rdf:type owl:Class ;
                   rdfs:subClassOf ecsel-dr-AT:Communication_Device ;
                   rdfs:label "Proxy"@en ;
-                  skos:definition "Proxy - an intermediary between devices, networks or services to forward, mediate, translate or control communications for power-system monitoring, control and management."@en .
+                  skos:definition "Proxy - an intermediary between devices, networks or services to forward, mediate, translate or control communications for monitoring, control and management."@en .
 
 
 ###  http://www.w3id.org/ecsel-dr-AT#RDF
@@ -20739,8 +20749,8 @@ ecsel-dr-OM:Customer_Plant_Data rdf:type owl:Class ;
 ###  http://www.w3id.org/ecsel-dr-OM#Demand_Fulfillment
 ecsel-dr-OM:Demand_Fulfillment rdf:type owl:Class ;
                                rdfs:subClassOf dr:Supply_Chain_Lobe ;
-                               rdfs:comment "DEMAND FULFILLMENT is the process of meeting a customer´s demand for product or services by fulfilling their request." ,
-                                            "DEMAND FULFILLMENT refers to the set of processes by which a company responds to customer demand by delivering products or services. In the semiconductor supply chain, it includes order promising, product allocation, scheduling, and ensuring timely delivery. It represents the interface between the supply chain and external customers, ensuring that demand is met in accordance with business rules and available resources. It represents the interface between the supply chain and its external customers. It also connects closely with Available to Promise (ATP) mechanisms that decide what can be committed to customers based on current and projected inventory and capacity." ;
+                               rdfs:comment "DEMAND FULFILLMENT is the process of meeting a customer's demand for product or services by fulfilling their request." ,
+                                            "DEMAND FULFILLMENT refers to the set of processes by which a company responds to customer demand by delivering products or services. In the semiconductor supply chain, it includes order promising, product allocation, scheduling, and ensuring timely delivery. It represents the interface between the supply chain and external customers, ensuring that demand is met in accordance with business rules and available resources. It also connects closely with Available to Promise (ATP) mechanisms that decide what can be committed to customers based on current and projected inventory and capacity." ;
                                rdfs:label "Demand Fulfillment"@en .
 
 
