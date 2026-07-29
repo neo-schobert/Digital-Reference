@@ -31,6 +31,7 @@ export default function GraphTab({ meta, dark }: Props) {
   );
   const [showSubclass, setShowSubclass] = useState(true);
   const [showProperties, setShowProperties] = useState(true);
+  const [minDegree, setMinDegree] = useState(0);
   const [fullGraph, setFullGraph] = useState<BuiltGraph>({ nodes: [], links: [] });
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -64,7 +65,7 @@ export default function GraphTab({ meta, dark }: Props) {
         ? n.lobes.some((l) => selectedLobes.has(l)) ||
           (selectedLobes.has(NO_LOBE) && n.lobes.length === 0)
         : selectedModules.has(n.module);
-    const nodes = fullGraph.nodes.filter(keepNode);
+    const nodes = fullGraph.nodes.filter((n) => keepNode(n) && n.degree >= minDegree);
     const kept = new Set(nodes.map((n) => n.id));
     const links = fullGraph.links.filter(
       (l) =>
@@ -73,7 +74,12 @@ export default function GraphTab({ meta, dark }: Props) {
         (l.type === "subclass" ? showSubclass : showProperties)
     );
     return { nodes, links };
-  }, [fullGraph, groupMode, selectedLobes, selectedModules, showSubclass, showProperties]);
+  }, [fullGraph, groupMode, selectedLobes, selectedModules, showSubclass, showProperties, minDegree]);
+
+  const maxDegree = useMemo(
+    () => Math.min(50, fullGraph.nodes.reduce((m, n) => Math.max(m, n.degree), 0)),
+    [fullGraph]
+  );
 
   /* ---- Couleurs par groupe (ordre fixe issu du meta) ---- */
   const lobeOrder = useMemo(() => meta.lobes.map((l) => l.id), [meta]);
@@ -254,24 +260,6 @@ export default function GraphTab({ meta, dark }: Props) {
         </div>
 
         <div>
-          <h3>View</h3>
-          <div className="segmented">
-            <button
-              className={viewMode === "3d" ? "active" : ""}
-              onClick={() => setViewMode("3d")}
-            >
-              3D
-            </button>
-            <button
-              className={viewMode === "2d" ? "active" : ""}
-              onClick={() => setViewMode("2d")}
-            >
-              2D
-            </button>
-          </div>
-        </div>
-
-        <div>
           <h3>Group by</h3>
           <div className="segmented">
             <button
@@ -402,6 +390,43 @@ export default function GraphTab({ meta, dark }: Props) {
             visibleLinkKeys={visibleLinkKeys}
           />
         )}
+        <div className="view-switch" role="tablist" aria-label="View mode">
+          <button
+            role="tab"
+            aria-selected={viewMode === "3d"}
+            className={viewMode === "3d" ? "active" : ""}
+            onClick={() => setViewMode("3d")}
+          >
+            3D
+          </button>
+          <button
+            role="tab"
+            aria-selected={viewMode === "2d"}
+            className={viewMode === "2d" ? "active" : ""}
+            onClick={() => setViewMode("2d")}
+          >
+            2D
+          </button>
+        </div>
+        <div
+          className="threshold-box"
+          title="Hide nodes with fewer connections than the threshold"
+        >
+          <span className="thr-label">
+            Importance ≥ {minDegree}
+            <span className="thr-count">
+              {graph.nodes.length.toLocaleString("en-US")} shown
+            </span>
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={maxDegree}
+            step={1}
+            value={minDegree}
+            onChange={(e) => setMinDegree(Number(e.target.value))}
+          />
+        </div>
       </div>
 
       {/* ------------- Panneau de détails ------------- */}
