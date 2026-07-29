@@ -246,8 +246,8 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
           : "rgba(11,11,11,0.25)";
       ctx.stroke();
 
-      if ((scale > 1.2 || isSelected || isNeighbor) && !dimmed) {
-        const fontSize = Math.max(11 / scale, 2.4);
+      if ((scale > 0.5 || isSelected || isNeighbor) && !dimmed) {
+        const fontSize = Math.max(12 / scale, 3.2);
         ctx.font = `${isSelected ? "600 " : ""}${fontSize}px system-ui, sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
@@ -309,13 +309,13 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
         isSelLink ||
         (selectedId !== null &&
           (l.source?.id === selectedId || l.target?.id === selectedId));
-      if (scale < 2.2 && !active) return;
+      if (scale < 1.1 && !active) return;
       if ((selectedId !== null || selectedLinkKey !== null) && !active) return;
       const sx = l.source?.x, sy = l.source?.y, tx = l.target?.x, ty = l.target?.y;
       if ([sx, sy, tx, ty].some((v) => typeof v !== "number")) return;
       const mx = (sx + tx) / 2;
       const my = (sy + ty) / 2;
-      const fontSize = Math.max(9 / scale, 1.8);
+      const fontSize = Math.max(10 / scale, 2.2);
       ctx.font = `${isSelLink ? "600 " : ""}${fontSize}px system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";

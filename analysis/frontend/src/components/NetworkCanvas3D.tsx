@@ -79,6 +79,9 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
   const registryRef = useRef(new Map<string, { mesh: THREE.Mesh; sprite: SpriteText }>());
+  const linkSpriteRef = useRef(
+    new Map<string, { sprite: SpriteText; source: string; target: string }>()
+  );
   const nodeCacheRef = useRef(new Map<string, any>());
   const firstFitRef = useRef(true);
   const [axisDots, setAxisDots] = useState<AxisDot[]>([]);
@@ -110,7 +113,7 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     onSelectLink,
     visibleNodeIds,
     visibleLinkKeys,
-    showLabels: visibleCount <= 450,
+    showLabels: true,
   };
 
   /* ---- Mise en évidence sélection : mutation directe des matériaux ---- */
@@ -126,6 +129,13 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       const mat = mesh.material as THREE.MeshLambertMaterial;
       mat.opacity = dim ? 0.07 : 1;
       sprite.visible = dim ? false : showLabels || isSel || isNb;
+    });
+    const { selectedId: selId, selectedLinkKey: selKey } = stateRef.current;
+    linkSpriteRef.current.forEach(({ sprite, source, target }, key) => {
+      const touches =
+        (selId !== null && (source === selId || target === selId)) ||
+        (selKey !== null && key === selKey);
+      sprite.visible = selId === null && selKey === null ? true : touches;
     });
     fg.linkColor(fg.linkColor());
     fg.linkWidth(fg.linkWidth());
@@ -208,7 +218,7 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       mesh.scale.setScalar(r);
       const label: string =
         node.label.length > 30 ? node.label.slice(0, 28) + "…" : node.label;
-      const sprite = new SpriteText(label, 3.8, dark ? "#c3c2b7" : "#52514e");
+      const sprite = new SpriteText(label, 4.6, dark ? "#c3c2b7" : "#52514e");
       sprite.material.depthWrite = false;
       sprite.position.set(0, -(r + 5), 0);
       sprite.visible = showLabels;
@@ -239,6 +249,32 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     );
     if (typeof fg.linkHoverPrecision === "function") fg.linkHoverPrecision(4);
     fg.linkLabel((l: any) => l.label ?? "");
+    // Nom de la propriété affiché au milieu des arêtes (comme WebVOWL)
+    fg.linkThreeObjectExtend(true);
+    fg.linkThreeObject((l: any) => {
+      if (l.kind !== "property" || !l.label) return null;
+      const { dark } = stateRef.current;
+      const text: string = l.label.length > 28 ? l.label.slice(0, 26) + "…" : l.label;
+      const sprite = new SpriteText(text, 2.6, dark ? "#8fa8c8" : "#5b7ca6");
+      sprite.material.depthWrite = false;
+      if (l.key) {
+        linkSpriteRef.current.set(l.key, {
+          sprite,
+          source: typeof l.source === "object" ? l.source.id : l.source,
+          target: typeof l.target === "object" ? l.target.id : l.target,
+        });
+      }
+      return sprite;
+    });
+    fg.linkPositionUpdate((obj: any, { start, end }: any) => {
+      if (!obj) return false;
+      obj.position.set(
+        start.x + (end.x - start.x) / 2,
+        start.y + (end.y - start.y) / 2,
+        start.z + (end.z - start.z) / 2
+      );
+      return false;
+    });
     fg.linkDirectionalArrowLength(3);
     fg.linkDirectionalArrowRelPos(0.94);
 
@@ -311,6 +347,7 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       fg._destructor?.();
       fgRef.current = null;
       registryRef.current.clear();
+      linkSpriteRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -321,6 +358,7 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     if (!fg) return;
     const cache = nodeCacheRef.current;
     registryRef.current.clear();
+    linkSpriteRef.current.clear();
     const nodeObjs = nodes.map((n) => {
       const existing = cache.get(n.id);
       const obj = existing ? Object.assign(existing, n) : { ...n };
@@ -383,6 +421,9 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
         (mesh.material as THREE.MeshLambertMaterial).color.set(colorOf(node.group));
       }
       sprite.color = dark ? "#c3c2b7" : "#52514e";
+    });
+    linkSpriteRef.current.forEach(({ sprite }) => {
+      sprite.color = dark ? "#8fa8c8" : "#5b7ca6";
     });
     fg.linkColor(fg.linkColor());
   }, [dark, colorOf]);
