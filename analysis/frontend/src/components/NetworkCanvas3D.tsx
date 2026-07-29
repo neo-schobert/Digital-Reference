@@ -84,6 +84,7 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
   );
   const nodeCacheRef = useRef(new Map<string, any>());
   const firstFitRef = useRef(true);
+  const hadSelectionRef = useRef(false);
   const [axisDots, setAxisDots] = useState<AxisDot[]>([]);
 
   const neighbors = useMemo(() => {
@@ -458,8 +459,30 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       }
     }
     if (target) {
+      hadSelectionRef.current = true;
       const p = fg.camera().position;
       fg.cameraPosition({ x: p.x, y: p.y, z: p.z }, target, 500);
+    } else if (hadSelectionRef.current) {
+      // Désélection : ramener le pivot d'orbite au centre du graphe visible,
+      // sinon la rotation continue de tourner autour de l'ancienne sélection.
+      hadSelectionRef.current = false;
+      const { visibleNodeIds } = stateRef.current;
+      const nodes = fg
+        .graphData()
+        .nodes.filter(
+          (n: any) =>
+            typeof n.x === "number" &&
+            (!visibleNodeIds || visibleNodeIds.has(n.id))
+        );
+      const center = nodes.length
+        ? {
+            x: nodes.reduce((s: number, n: any) => s + n.x, 0) / nodes.length,
+            y: nodes.reduce((s: number, n: any) => s + n.y, 0) / nodes.length,
+            z: nodes.reduce((s: number, n: any) => s + n.z, 0) / nodes.length,
+          }
+        : { x: 0, y: 0, z: 0 };
+      const p = fg.camera().position;
+      fg.cameraPosition({ x: p.x, y: p.y, z: p.z }, center, 600);
     }
   }, [selectedId, selectedLinkKey, applyHighlight]);
 
@@ -511,11 +534,14 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     const controls = fg.controls();
     const target = controls?.target ?? new THREE.Vector3(0, 0, 0);
     const dist = cam.position.distanceTo(target) || 400;
+    // ±Y exact = pôle d'OrbitControls (rotation instable) : léger biais
+    const v = new THREE.Vector3(...dir);
+    if (Math.abs(v.y) > 0.99) v.set(0.0, v.y, 0.04).normalize();
     fg.cameraPosition(
       {
-        x: target.x + dir[0] * dist,
-        y: target.y + dir[1] * dist,
-        z: target.z + dir[2] * dist,
+        x: target.x + v.x * dist,
+        y: target.y + v.y * dist,
+        z: target.z + v.z * dist,
       },
       { x: target.x, y: target.y, z: target.z },
       700
