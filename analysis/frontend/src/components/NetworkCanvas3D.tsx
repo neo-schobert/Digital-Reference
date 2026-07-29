@@ -181,6 +181,15 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     fg.linkWidth(fg.linkWidth());
   }, [updateLabelVisibility]);
 
+  const alignAnimRef = useRef<number | null>(null);
+
+  const cancelAlign = useCallback(() => {
+    if (alignAnimRef.current !== null) {
+      cancelAnimationFrame(alignAnimRef.current);
+      alignAnimRef.current = null;
+    }
+  }, []);
+
   /* ------------------------- Instanciation ------------------------- */
   useEffect(() => {
     const el = containerRef.current;
@@ -354,6 +363,7 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
         MIDDLE: THREE.MOUSE.ROTATE,
         RIGHT: THREE.MOUSE.ROTATE,
       };
+      controls.addEventListener?.("start", cancelAlign);
     }
 
     // Gizmo : projection des axes dans le repère caméra (boucle rAF légère)
@@ -399,6 +409,7 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       cancelAnimationFrame(raf);
       ro.disconnect();
       fg._destructor?.();
+      cancelAlign();
       fgRef.current = null;
       registryRef.current.clear();
       linkSpriteRef.current.clear();
@@ -527,25 +538,57 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
   }));
 
   /* ------- Alignement caméra sur un axe (gizmo) ------- */
+  /* Alignement caméra : rotation sur la sphère autour du pivot (slerp),
+     JAMAIS d'interpolation en ligne droite — une ligne droite entre deux
+     points opposés traverserait le centre du graphe et ferait partir la
+     vue en vrille. */
   const alignTo = (dir: [number, number, number]) => {
     const fg = fgRef.current;
     if (!fg) return;
+    cancelAlign();
     const cam = fg.camera();
     const controls = fg.controls();
-    const target = controls?.target ?? new THREE.Vector3(0, 0, 0);
+    const target: THREE.Vector3 =
+      controls?.target?.clone() ?? new THREE.Vector3(0, 0, 0);
     const dist = cam.position.distanceTo(target) || 400;
+
     // ±Y exact = pôle d'OrbitControls (rotation instable) : léger biais
-    const v = new THREE.Vector3(...dir);
-    if (Math.abs(v.y) > 0.99) v.set(0.0, v.y, 0.04).normalize();
-    fg.cameraPosition(
-      {
-        x: target.x + v.x * dist,
-        y: target.y + v.y * dist,
-        z: target.z + v.z * dist,
-      },
-      { x: target.x, y: target.y, z: target.z },
-      700
-    );
+    const end = new THREE.Vector3(...dir);
+    if (Math.abs(end.y) > 0.99) end.set(0, end.y, 0.04).normalize();
+
+    const start = cam.position.clone().sub(target).normalize();
+    if (start.lengthSq() === 0) start.set(0, 0, 1);
+
+    let qFull: THREE.Quaternion;
+    if (start.dot(end) < -0.999) {
+      // Demi-tour : rotation azimutale (autour de Y), sans survoler le pôle
+      let axis = new THREE.Vector3(0, 1, 0).cross(start);
+      if (axis.lengthSq() < 1e-6) axis = new THREE.Vector3(1, 0, 0);
+      qFull = new THREE.Quaternion().setFromAxisAngle(axis.normalize(), Math.PI);
+    } else {
+      qFull = new THREE.Quaternion().setFromUnitVectors(start, end);
+    }
+
+    const identity = new THREE.Quaternion();
+    const t0 = performance.now();
+    const DURATION = 600;
+    const step = () => {
+      const t = Math.min(1, (performance.now() - t0) / DURATION);
+      const e = t * (2 - t); // ease-out
+      const q = new THREE.Quaternion().slerpQuaternions(identity, qFull, e);
+      const d = t === 1 ? end : start.clone().applyQuaternion(q);
+      fg.cameraPosition(
+        {
+          x: target.x + d.x * dist,
+          y: target.y + d.y * dist,
+          z: target.z + d.z * dist,
+        },
+        { x: target.x, y: target.y, z: target.z },
+        0
+      );
+      alignAnimRef.current = t < 1 ? requestAnimationFrame(step) : null;
+    };
+    alignAnimRef.current = requestAnimationFrame(step);
   };
 
   const R = 34;
