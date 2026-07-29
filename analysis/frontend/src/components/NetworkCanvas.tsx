@@ -25,6 +25,8 @@ export interface VizLink {
   lslot?: number;
   /** Sens du lien par rapport à l'ordre canonique de la paire */
   lflip?: boolean;
+  /** Position du label le long de l'arête (0..1, défaut 0.5) */
+  lt?: number;
 }
 
 export interface NetworkCanvasHandle {
@@ -331,8 +333,9 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
       if ((selectedId !== null || selectedLinkKey !== null) && !active) return;
       const sx = l.source?.x, sy = l.source?.y, tx = l.target?.x, ty = l.target?.y;
       if ([sx, sy, tx, ty].some((v) => typeof v !== "number")) return;
-      let mx = (sx + tx) / 2;
-      let my = (sy + ty) / 2;
+      const t = l.lt ?? 0.5;
+      let mx = sx + (tx - sx) * t;
+      let my = sy + (ty - sy) * t;
       if (l.lslot !== undefined && l.lslot !== 0) {
         const dx = tx - sx;
         const dy = ty - sy;
@@ -343,7 +346,7 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
           px = -px;
           py = -py;
         }
-        const gap = Math.max(8 / scale, 3.5);
+        const gap = Math.max(6 / scale, 2.5);
         mx += px * gap * l.lslot;
         my += py * gap * l.lslot;
       }

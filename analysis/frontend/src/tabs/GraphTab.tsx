@@ -126,6 +126,7 @@ export default function GraphTab({ meta, dark }: Props) {
       key: linkKey(l),
       lslot: undefined as number | undefined,
       lflip: false,
+      lt: undefined as number | undefined,
     }));
     // Arêtes parallèles (ex. bidirectionnelles) : répartir les labels sur des
     // slots perpendiculaires pour qu'ils ne se chevauchent pas.
@@ -141,8 +142,14 @@ export default function GraphTab({ meta, dark }: Props) {
     pairs.forEach((idxs) => {
       if (idxs.length < 2) return;
       idxs.forEach((li, j) => {
-        links[li].lslot = j - (idxs.length - 1) / 2;
-        links[li].lflip = links[li].source > links[li].target;
+        const link = links[li];
+        link.lslot = j - (idxs.length - 1) / 2;
+        link.lflip = link.source > link.target;
+        // Répartition LE LONG de l'arête (0.25 → 0.75), en direction
+        // canonique de la paire : c'est la vraie garantie anti-chevauchement
+        // pour des labels larges.
+        const tBase = 0.25 + (0.5 * j) / (idxs.length - 1);
+        link.lt = link.lflip ? 1 - tBase : tBase;
       });
     });
     return links;

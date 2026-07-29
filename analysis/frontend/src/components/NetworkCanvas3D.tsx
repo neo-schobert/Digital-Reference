@@ -319,9 +319,10 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     });
     fg.linkPositionUpdate((obj: any, { start, end }: any, l: any) => {
       if (!obj) return false;
-      let mx = start.x + (end.x - start.x) / 2;
-      let my = start.y + (end.y - start.y) / 2;
-      let mz = start.z + (end.z - start.z) / 2;
+      const t = l?.lt ?? 0.5;
+      let mx = start.x + (end.x - start.x) * t;
+      let my = start.y + (end.y - start.y) * t;
+      let mz = start.z + (end.z - start.z) * t;
       if (l?.lslot !== undefined && l.lslot !== 0) {
         // Perpendiculaire au segment (cohérente pour la paire via lflip)
         const ux = end.x - start.x;
