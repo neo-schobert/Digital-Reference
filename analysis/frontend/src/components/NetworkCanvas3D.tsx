@@ -317,13 +317,40 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       }
       return sprite;
     });
-    fg.linkPositionUpdate((obj: any, { start, end }: any) => {
+    fg.linkPositionUpdate((obj: any, { start, end }: any, l: any) => {
       if (!obj) return false;
-      obj.position.set(
-        start.x + (end.x - start.x) / 2,
-        start.y + (end.y - start.y) / 2,
-        start.z + (end.z - start.z) / 2
-      );
+      let mx = start.x + (end.x - start.x) / 2;
+      let my = start.y + (end.y - start.y) / 2;
+      let mz = start.z + (end.z - start.z) / 2;
+      if (l?.lslot !== undefined && l.lslot !== 0) {
+        // Perpendiculaire au segment (cohérente pour la paire via lflip)
+        const ux = end.x - start.x;
+        const uy = end.y - start.y;
+        const uz = end.z - start.z;
+        let px = -uz;
+        let py = 0;
+        let pz = ux;
+        let n = Math.hypot(px, py, pz);
+        if (n < 1e-3) {
+          px = 0;
+          py = uz;
+          pz = -uy;
+          n = Math.hypot(px, py, pz) || 1;
+        }
+        px /= n;
+        py /= n;
+        pz /= n;
+        if (l.lflip) {
+          px = -px;
+          py = -py;
+          pz = -pz;
+        }
+        const gap = 3.6;
+        mx += px * gap * l.lslot;
+        my += py * gap * l.lslot;
+        mz += pz * gap * l.lslot;
+      }
+      obj.position.set(mx, my, mz);
       return false;
     });
     fg.linkDirectionalArrowLength(3);

@@ -117,17 +117,36 @@ export default function GraphTab({ meta, dark }: Props) {
       })),
     [fullGraph, groupOfNode]
   );
-  const vizLinks = useMemo(
-    () =>
-      fullGraph.links.map((l) => ({
-        source: l.source,
-        target: l.target,
-        kind: l.type,
-        label: l.label,
-        key: linkKey(l),
-      })),
-    [fullGraph]
-  );
+  const vizLinks = useMemo(() => {
+    const links = fullGraph.links.map((l) => ({
+      source: l.source,
+      target: l.target,
+      kind: l.type,
+      label: l.label,
+      key: linkKey(l),
+      lslot: undefined as number | undefined,
+      lflip: false,
+    }));
+    // Arêtes parallèles (ex. bidirectionnelles) : répartir les labels sur des
+    // slots perpendiculaires pour qu'ils ne se chevauchent pas.
+    const pairs = new Map<string, number[]>();
+    links.forEach((l, i) => {
+      const k =
+        l.source < l.target
+          ? `${l.source}\u0000${l.target}`
+          : `${l.target}\u0000${l.source}`;
+      if (!pairs.has(k)) pairs.set(k, []);
+      pairs.get(k)!.push(i);
+    });
+    pairs.forEach((idxs) => {
+      if (idxs.length < 2) return;
+      idxs.forEach((li, j) => {
+        links[li].lslot = j - (idxs.length - 1) / 2;
+        links[li].lflip = links[li].source > links[li].target;
+      });
+    });
+    return links;
+  }, [fullGraph]);
   const visibleNodeIds = useMemo(
     () => new Set(graph.nodes.map((n) => n.id)),
     [graph]

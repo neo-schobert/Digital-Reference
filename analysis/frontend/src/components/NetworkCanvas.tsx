@@ -21,6 +21,10 @@ export interface VizLink {
   label?: string;
   /** Identifiant stable de l'arête (sélection / visibilité) */
   key?: string;
+  /** Slot du label pour les arêtes parallèles (…-1, 0, 1…) */
+  lslot?: number;
+  /** Sens du lien par rapport à l'ordre canonique de la paire */
+  lflip?: boolean;
 }
 
 export interface NetworkCanvasHandle {
@@ -327,8 +331,22 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
       if ((selectedId !== null || selectedLinkKey !== null) && !active) return;
       const sx = l.source?.x, sy = l.source?.y, tx = l.target?.x, ty = l.target?.y;
       if ([sx, sy, tx, ty].some((v) => typeof v !== "number")) return;
-      const mx = (sx + tx) / 2;
-      const my = (sy + ty) / 2;
+      let mx = (sx + tx) / 2;
+      let my = (sy + ty) / 2;
+      if (l.lslot !== undefined && l.lslot !== 0) {
+        const dx = tx - sx;
+        const dy = ty - sy;
+        const len = Math.hypot(dx, dy) || 1;
+        let px = -dy / len;
+        let py = dx / len;
+        if (l.lflip) {
+          px = -px;
+          py = -py;
+        }
+        const gap = Math.max(8 / scale, 3.5);
+        mx += px * gap * l.lslot;
+        my += py * gap * l.lslot;
+      }
       const b = boundsRef.current;
       if (b && (mx < b.x1 || mx > b.x2 || my < b.y1 || my > b.y2)) return;
       const fontSize = Math.max(10 / scale, 2.2);
