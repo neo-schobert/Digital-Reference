@@ -116,30 +116,69 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     showLabels: true,
   };
 
+  /* ---- LOD : ne montrer que les labels lisibles depuis la caméra ----
+     (un texte projeté sous ~6,5 px est illisible : le masquer ne retire
+     aucune information et économise des centaines de draw calls) ---- */
+  const updateLabelVisibility = useCallback(() => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    const cam = fg.camera();
+    if (!cam) return;
+    const { selectedId, selectedLinkKey, neighbors } = stateRef.current;
+    const cp = cam.position;
+    const vh = typeof fg.height === "function" ? fg.height() : 800;
+    const fovRad = (((cam as any).fov ?? 50) * Math.PI) / 180;
+    const pxPerUnit = vh / (2 * Math.tan(fovRad / 2)); // à distance 1
+    const MIN_PX = 6.5;
+    const nodeLimit = (4.6 * pxPerUnit) / MIN_PX;
+    const linkLimit = (2.6 * pxPerUnit) / MIN_PX;
+
+    registryRef.current.forEach(({ mesh, sprite }, id) => {
+      const isSel = id === selectedId;
+      const isNb =
+        selectedId !== null && (neighbors.get(selectedId)?.has(id) ?? false);
+      const dimmed = selectedId !== null && !isSel && !isNb;
+      if (dimmed) {
+        sprite.visible = false;
+        return;
+      }
+      if (isSel || isNb) {
+        sprite.visible = true;
+        return;
+      }
+      const pos = mesh.parent?.position ?? sprite.position;
+      sprite.visible = cp.distanceTo(pos) < nodeLimit;
+    });
+
+    linkSpriteRef.current.forEach(({ sprite, source, target }, key) => {
+      if (selectedId !== null || selectedLinkKey !== null) {
+        sprite.visible =
+          (selectedId !== null &&
+            (source === selectedId || target === selectedId)) ||
+          (selectedLinkKey !== null && key === selectedLinkKey);
+        return;
+      }
+      sprite.visible = cp.distanceTo(sprite.position) < linkLimit;
+    });
+  }, []);
+
   /* ---- Mise en évidence sélection : mutation directe des matériaux ---- */
   const applyHighlight = useCallback(() => {
     const fg = fgRef.current;
     if (!fg) return;
-    const { selectedId, neighbors, showLabels } = stateRef.current;
-    registryRef.current.forEach(({ mesh, sprite }, id) => {
+    const { selectedId, neighbors } = stateRef.current;
+    registryRef.current.forEach(({ mesh }, id) => {
       const isSel = id === selectedId;
       const isNb =
         selectedId !== null && (neighbors.get(selectedId)?.has(id) ?? false);
       const dim = selectedId !== null && !isSel && !isNb;
       const mat = mesh.material as THREE.MeshLambertMaterial;
       mat.opacity = dim ? 0.07 : 1;
-      sprite.visible = dim ? false : showLabels || isSel || isNb;
     });
-    const { selectedId: selId, selectedLinkKey: selKey } = stateRef.current;
-    linkSpriteRef.current.forEach(({ sprite, source, target }, key) => {
-      const touches =
-        (selId !== null && (source === selId || target === selId)) ||
-        (selKey !== null && key === selKey);
-      sprite.visible = selId === null && selKey === null ? true : touches;
-    });
+    updateLabelVisibility();
     fg.linkColor(fg.linkColor());
     fg.linkWidth(fg.linkWidth());
-  }, []);
+  }, [updateLabelVisibility]);
 
   /* ------------------------- Instanciation ------------------------- */
   useEffect(() => {
@@ -148,9 +187,11 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     const FG: any = ForceGraph3D as any;
     let fg: any;
     try {
-      fg = FG.prototype
-        ? new FG(el, { controlType: "orbit" })
-        : FG({ controlType: "orbit" })(el);
+      const opts = {
+        controlType: "orbit",
+        rendererConfig: { antialias: true, powerPreference: "high-performance" },
+      };
+      fg = FG.prototype ? new FG(el, opts) : FG(opts)(el);
     } catch {
       fg = FG()(el);
     }
@@ -221,7 +262,7 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       const sprite = new SpriteText(label, 4.6, dark ? "#c3c2b7" : "#52514e");
       sprite.material.depthWrite = false;
       sprite.position.set(0, -(r + 5), 0);
-      sprite.visible = showLabels;
+      sprite.visible = false;
       group.add(mesh);
       group.add(sprite);
       registryRef.current.set(node.id, { mesh, sprite });
@@ -316,8 +357,14 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
 
     // Gizmo : projection des axes dans le repère caméra (boucle rAF légère)
     let raf = 0;
+    let lastLod = 0;
     const lastQ = new THREE.Quaternion(0, 0, 0, 0);
     const tick = () => {
+      const nowMs = performance.now();
+      if (nowMs - lastLod > 200) {
+        lastLod = nowMs;
+        updateLabelVisibility();
+      }
       const cam = fg.camera();
       if (cam && Math.abs(1 - Math.abs(cam.quaternion.dot(lastQ))) > 1e-6) {
         lastQ.copy(cam.quaternion);
@@ -332,6 +379,12 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
+
+    try {
+      fg.renderer()?.setPixelRatio?.(Math.min(window.devicePixelRatio || 1, 2));
+    } catch {
+      /* selon la version */
+    }
 
     const ro = new ResizeObserver(() => {
       fg.width(el.clientWidth);
@@ -350,7 +403,7 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       linkSpriteRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [updateLabelVisibility]);
 
   /* ------- Données : une seule fois (positions conservées ensuite) ------- */
   useEffect(() => {

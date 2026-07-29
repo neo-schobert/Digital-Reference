@@ -70,6 +70,7 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
+  const boundsRef = useRef<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const nodeCacheRef = useRef(new Map<string, any>());
   const firstFitRef = useRef(true);
 
@@ -220,8 +221,21 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
     });
     if (typeof fg.linkHoverPrecision === "function") fg.linkHoverPrecision(8);
 
+    // Bornes du viewport (en coordonnées graphe) calculées une fois par frame :
+    // permet de ne pas dessiner nœuds/labels hors écran (aucune perte visuelle).
+    if (typeof fg.onRenderFramePre === "function") {
+      fg.onRenderFramePre((_ctx: CanvasRenderingContext2D, scale: number) => {
+        const tl = fg.screen2GraphCoords(0, 0);
+        const br = fg.screen2GraphCoords(el.clientWidth, el.clientHeight);
+        const m = 60 / scale;
+        boundsRef.current = { x1: tl.x - m, y1: tl.y - m, x2: br.x + m, y2: br.y + m };
+      });
+    }
+
     // --- Rendu des nœuds ---
     fg.nodeCanvasObject((node: any, ctx: CanvasRenderingContext2D, scale: number) => {
+      const b = boundsRef.current;
+      if (b && (node.x < b.x1 || node.x > b.x2 || node.y < b.y1 || node.y > b.y2)) return;
       const { colorOf, dark, selectedId, neighbors } = stateRef.current;
       const isSelected = selectedId === node.id;
       const isNeighbor =
@@ -315,6 +329,8 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
       if ([sx, sy, tx, ty].some((v) => typeof v !== "number")) return;
       const mx = (sx + tx) / 2;
       const my = (sy + ty) / 2;
+      const b = boundsRef.current;
+      if (b && (mx < b.x1 || mx > b.x2 || my < b.y1 || my > b.y2)) return;
       const fontSize = Math.max(10 / scale, 2.2);
       ctx.font = `${isSelLink ? "600 " : ""}${fontSize}px system-ui, sans-serif`;
       ctx.textAlign = "center";
