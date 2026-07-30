@@ -1,26 +1,156 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # Lancement unifié du Digital Reference Explorer
-#   - démarre le backend (Express + oxigraph) en arrière-plan
-#   - démarre le frontend (Vite) et ouvre automatiquement le navigateur
-#   - installe les dépendances manquantes, et explique les échecs (droits,
-#     réseau, disque…) le cas échéant
-# Arrêt : Ctrl+C (arrête aussi le backend), ou ./stop.sh
+#
+#   ./start.sh          ouvre une FENÊTRE DE TERMINAL dédiée qui exécute
+#                       l'application ; FERMER CETTE FENÊTRE (ou Ctrl+C)
+#                       arrête proprement backend + frontend.
+#   ./start.sh --run    mode interne : exécution réelle (c'est ce que la
+#                       fenêtre lance). Utilisable aussi directement si l'on
+#                       veut tout garder dans le terminal courant.
+#
+# Au démarrage, les ports nécessaires (backend + frontend) sont libérés :
+# tout processus qui écoute encore dessus est arrêté.
+# Ports personnalisés : DR_BACKEND_PORT=… DR_FRONTEND_PORT=… ./start.sh
 # ---------------------------------------------------------------------------
 set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SELF="$ROOT/$(basename "${BASH_SOURCE[0]}")"
 LOG_DIR="$ROOT/.logs"
 mkdir -p "$LOG_DIR"
 
 BACKEND_PORT="${DR_BACKEND_PORT:-3178}"
 FRONTEND_PORT="${DR_FRONTEND_PORT:-5173}"
+TITLE="Digital Reference Explorer  —  fermer cette fenêtre = tout arrêter"
 
 info() { printf '\033[1;34m[start]\033[0m %s\n' "$*"; }
 err()  { printf '\033[1;31m[erreur]\033[0m %s\n' "$*" >&2; }
 
 # ---------------------------------------------------------------------------
-# 1. Node.js : PATH courant, puis emplacements usuels (installation locale,
+# Mode lanceur : ouvre une fenêtre de terminal qui exécute « $SELF --run ».
+# Si aucun terminal graphique n'est disponible (ou pas de session graphique),
+# on bascule en exécution directe dans le terminal courant.
+# ---------------------------------------------------------------------------
+if [ "${1:-}" != "--run" ]; then
+  # Fichier témoin : écrit par le mode --run dès son démarrage. On ne déclare
+  # la fenêtre « ouverte » que si le témoin apparaît ; sinon on essaie le
+  # terminal suivant, et en dernier recours on exécute ici même.
+  STAMP="$LOG_DIR/run.started"
+  rm -f "$STAMP"
+  if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+    tried=""
+    for term in ptyxis gnome-terminal konsole xfce4-terminal kitty alacritty foot x-terminal-emulator xterm; do
+      command -v "$term" >/dev/null 2>&1 || continue
+      real="$(readlink -f "$(command -v "$term")")"
+      case " $tried " in *" $real "*) continue ;; esac   # même binaire déjà essayé
+      tried="$tried $real"
+      TERMLOG="$LOG_DIR/terminal-$term.log"
+      # Tous lancés en arrière-plan : certains clients (ptyxis, kitty…)
+      # ne rendent pas la main tant que la fenêtre est ouverte.
+      case "$term" in
+        ptyxis)
+          ptyxis --new-window -T "$TITLE" -d "$ROOT" -- "$SELF" --run "$BACKEND_PORT" "$FRONTEND_PORT" >"$TERMLOG" 2>&1 & disown ;;
+        gnome-terminal)
+          gnome-terminal --title="$TITLE" -- "$SELF" --run "$BACKEND_PORT" "$FRONTEND_PORT" >"$TERMLOG" 2>&1 & disown ;;
+        konsole)
+          konsole -p tabtitle="$TITLE" -e "$SELF" --run "$BACKEND_PORT" "$FRONTEND_PORT" >"$TERMLOG" 2>&1 & disown ;;
+        xfce4-terminal)
+          xfce4-terminal -T "$TITLE" -x "$SELF" --run "$BACKEND_PORT" "$FRONTEND_PORT" >"$TERMLOG" 2>&1 & disown ;;
+        kitty|foot)
+          "$term" "$SELF" --run "$BACKEND_PORT" "$FRONTEND_PORT" >"$TERMLOG" 2>&1 & disown ;;
+        alacritty)
+          alacritty -T "$TITLE" -e "$SELF" --run "$BACKEND_PORT" "$FRONTEND_PORT" >"$TERMLOG" 2>&1 & disown ;;
+        x-terminal-emulator|xterm)
+          "$term" -T "$TITLE" -e "$SELF" --run "$BACKEND_PORT" "$FRONTEND_PORT" >"$TERMLOG" 2>&1 & disown ;;
+      esac
+      for i in $(seq 1 17); do
+        [ -f "$STAMP" ] && break
+        sleep 0.3
+      done
+      if [ -f "$STAMP" ]; then
+        info "Fenêtre de terminal ouverte ($term)."
+        info "Fermer cette fenêtre (ou Ctrl+C dedans) arrêtera backend et frontend."
+        exit 0
+      fi
+      err "La fenêtre $term ne s'est pas ouverte (journal : $TERMLOG) — essai suivant…"
+    done
+    err "Aucune fenêtre de terminal n'a pu être ouverte — exécution dans ce terminal."
+  else
+    info "Pas de session graphique — exécution dans ce terminal."
+  fi
+  exec "$SELF" --run "$BACKEND_PORT" "$FRONTEND_PORT"
+fi
+
+# ---------------------------------------------------------------------------
+# Mode --run : exécution réelle.
+# ---------------------------------------------------------------------------
+BACKEND_PORT="${2:-$BACKEND_PORT}"
+FRONTEND_PORT="${3:-$FRONTEND_PORT}"
+
+# Témoin lu par le mode lanceur : la fenêtre a bien démarré.
+echo "$$" >"$LOG_DIR/run.started"
+
+# Arrêt propre : déclenché à la sortie, quelle qu'en soit la cause —
+# fermeture de la fenêtre (SIGHUP), Ctrl+C (SIGINT), kill (SIGTERM), erreur.
+VITE_PID=""
+cleanup() {
+  local code=$?
+  trap - EXIT
+  if [ -n "$VITE_PID" ]; then
+    kill "$VITE_PID" 2>/dev/null || true
+  fi
+  if [ -f "$LOG_DIR/backend.pid" ]; then
+    kill "$(cat "$LOG_DIR/backend.pid")" 2>/dev/null || true
+    rm -f "$LOG_DIR/backend.pid"
+  fi
+  # Filet de sécurité : processus résiduels (repris de l'ancien stop.sh)
+  pkill -f "tsx src/server.ts" 2>/dev/null || true
+  pkill -f "vite --port" 2>/dev/null || true
+  # Ne retirer le témoin que s'il est à nous (une nouvelle instance a pu
+  # écrire le sien pendant que celle-ci s'arrête).
+  if [ "$(cat "$LOG_DIR/run.started" 2>/dev/null)" = "$$" ]; then
+    rm -f "$LOG_DIR/run.started"
+  fi
+  info "Backend et frontend arrêtés."
+  # En cas d'erreur (hors signal), on laisse la fenêtre ouverte pour lire
+  # le message avant qu'elle ne disparaisse.
+  if [ "$code" -ne 0 ] && [ "$code" -lt 128 ]; then
+    read -rp "Appuyez sur Entrée pour fermer cette fenêtre…" _ 2>/dev/null || true
+  fi
+  exit "$code"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# ---------------------------------------------------------------------------
+# 1. Libération des ports nécessaires : tout processus qui écoute encore
+#    sur le port backend ou frontend est arrêté (TERM, puis KILL si besoin).
+# ---------------------------------------------------------------------------
+clear_port() {
+  local port="$1" name="$2" pids i
+  pids="$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+  [ -z "$pids" ] && return 0
+  info "Port $port ($name) occupé — arrêt du/des processus $(echo $pids | tr '\n' ' ')…"
+  kill $pids 2>/dev/null || true
+  for i in $(seq 1 10); do
+    pids="$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+    [ -z "$pids" ] && return 0
+    sleep 0.5
+  done
+  err "Le port $port résiste — arrêt forcé (kill -9)."
+  kill -9 $pids 2>/dev/null || true
+  sleep 0.5
+}
+
+rm -f "$LOG_DIR/backend.pid"
+clear_port "$BACKEND_PORT" "backend"
+clear_port "$FRONTEND_PORT" "frontend"
+
+# ---------------------------------------------------------------------------
+# 2. Node.js : PATH courant, puis emplacements usuels (installation locale,
 #    nvm), sinon on explique comment l'installer sans droits root.
 # ---------------------------------------------------------------------------
 if ! command -v node >/dev/null 2>&1; then
@@ -51,7 +181,7 @@ fi
 info "node $(node --version), npm $(npm --version)"
 
 # ---------------------------------------------------------------------------
-# 2. Dépendances npm, avec diagnostic clair en cas d'échec
+# 3. Dépendances npm, avec diagnostic clair en cas d'échec
 # ---------------------------------------------------------------------------
 explain_npm_failure() {
   local log="$1"
@@ -94,18 +224,8 @@ ensure_deps "$ROOT/backend" "backend"
 ensure_deps "$ROOT/frontend" "frontend"
 
 # ---------------------------------------------------------------------------
-# 3. Backend en arrière-plan (arrêt d'une éventuelle instance précédente)
+# 4. Backend en arrière-plan
 # ---------------------------------------------------------------------------
-if [ -f "$LOG_DIR/backend.pid" ]; then
-  OLD_PID="$(cat "$LOG_DIR/backend.pid")"
-  if kill -0 "$OLD_PID" 2>/dev/null; then
-    info "Arrêt de l'instance backend précédente (pid $OLD_PID)…"
-    kill "$OLD_PID" 2>/dev/null || true
-    sleep 1
-  fi
-  rm -f "$LOG_DIR/backend.pid"
-fi
-
 info "Démarrage du backend sur le port $BACKEND_PORT…"
 (
   cd "$ROOT/backend"
@@ -134,19 +254,16 @@ for i in $(seq 1 60); do
 done
 info "Backend prêt : http://localhost:$BACKEND_PORT (log : $LOG_DIR/backend.log)"
 
-# À la sortie du frontend (Ctrl+C), on arrête proprement le backend
-cleanup() {
-  if [ -f "$LOG_DIR/backend.pid" ]; then
-    kill "$(cat "$LOG_DIR/backend.pid")" 2>/dev/null || true
-    rm -f "$LOG_DIR/backend.pid"
-    info "Backend arrêté."
-  fi
-}
-trap cleanup EXIT INT TERM
-
 # ---------------------------------------------------------------------------
-# 4. Frontend (premier plan) — --open lance le navigateur automatiquement
+# 5. Frontend — --open lance le navigateur automatiquement.
+#    Vite tourne en arrière-plan et le script attend via « wait » : ainsi,
+#    fermer la fenêtre de terminal (SIGHUP) ou Ctrl+C interrompt le wait
+#    immédiatement et cleanup() arrête Vite ET le backend. (En avant-plan,
+#    bash différerait le trap tant que Vite tourne — et Vite ignore SIGHUP.)
 # ---------------------------------------------------------------------------
 info "Démarrage du frontend sur le port $FRONTEND_PORT — le navigateur va s'ouvrir…"
+info "Pour tout arrêter : fermez cette fenêtre, ou Ctrl+C."
 cd "$ROOT/frontend"
-DR_BACKEND_PORT="$BACKEND_PORT" npx vite --port "$FRONTEND_PORT" --open
+DR_BACKEND_PORT="$BACKEND_PORT" npx vite --port "$FRONTEND_PORT" --strictPort --open &
+VITE_PID=$!
+wait "$VITE_PID"
