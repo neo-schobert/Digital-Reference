@@ -9,17 +9,19 @@ Visualization and exploration of the **Digital Reference** ontology
 ./start.sh
 ```
 
-The script:
+The script opens a dedicated **terminal window** and, inside it:
 
-1. locates Node.js (or explains how to install it without root privileges);
-2. installs any missing npm dependencies (with clear diagnostics on
+1. frees the required ports (kills anything still listening on them);
+2. locates Node.js (or explains how to install it without root privileges);
+3. installs any missing npm dependencies (with clear diagnostics on
    failure: permissions, network/proxy, disk full);
-3. starts the **backend** in the background (port `3178`, log in
+4. starts the **backend** in the background (port `3178`, log in
    `.logs/backend.log`);
-4. starts the **frontend** with Vite (port `5173`) and opens the browser.
+5. starts the **frontend** with Vite (port `5173`) and opens the browser.
 
-`Ctrl+C` stops the frontend **and** the backend. To stop everything
-manually: `./stop.sh`. Custom ports:
+**Closing that terminal window stops everything** (frontend **and**
+backend); `Ctrl+C` inside it does the same. Without a graphical session,
+the app runs in the current terminal instead. Custom ports:
 `DR_BACKEND_PORT=… DR_FRONTEND_PORT=… ./start.sh`.
 
 ## Architecture
@@ -36,7 +38,7 @@ analysis/
 │       ├── tabs/SparqlTab.tsx   SPARQL tab (list + graph views + exports)
 │       ├── tabs/ChatTab.tsx     ChatBot tab (UI only, GraphRAG to be plugged in)
 │       └── components/          shared 2D/3D force-graph renderers
-├── start.sh / stop.sh
+├── start.sh          launcher (opens a terminal window; closing it stops the app)
 └── .logs/            logs and PID files (generated)
 ```
 
