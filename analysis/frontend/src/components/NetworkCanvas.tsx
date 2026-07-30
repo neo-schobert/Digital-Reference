@@ -21,10 +21,17 @@ export interface VizLink {
   label?: string;
   /** Identifiant stable de l'arête (sélection / visibilité) */
   key?: string;
+  /** Slot du label pour les arêtes parallèles (…-1, 0, 1…) */
+  lslot?: number;
+  /** Sens du lien par rapport à l'ordre canonique de la paire */
+  lflip?: boolean;
+  /** Position du label le long de l'arête (0..1, défaut 0.5) */
+  lt?: number;
 }
 
 export interface NetworkCanvasHandle {
-  focusNode: (id: string) => void;
+  /** Centre la vue sur le nœud ; false si le nœud n'est pas encore prêt. */
+  focusNode: (id: string) => boolean;
   zoomToFit: () => void;
 }
 
@@ -70,8 +77,10 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
+  const boundsRef = useRef<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const nodeCacheRef = useRef(new Map<string, any>());
   const firstFitRef = useRef(true);
+  const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Voisinage restreint aux arêtes visibles (pour la mise en évidence)
   const neighbors = useMemo(() => {
@@ -220,8 +229,21 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
     });
     if (typeof fg.linkHoverPrecision === "function") fg.linkHoverPrecision(8);
 
+    // Bornes du viewport (en coordonnées graphe) calculées une fois par frame :
+    // permet de ne pas dessiner nœuds/labels hors écran (aucune perte visuelle).
+    if (typeof fg.onRenderFramePre === "function") {
+      fg.onRenderFramePre((_ctx: CanvasRenderingContext2D, scale: number) => {
+        const tl = fg.screen2GraphCoords(0, 0);
+        const br = fg.screen2GraphCoords(el.clientWidth, el.clientHeight);
+        const m = 60 / scale;
+        boundsRef.current = { x1: tl.x - m, y1: tl.y - m, x2: br.x + m, y2: br.y + m };
+      });
+    }
+
     // --- Rendu des nœuds ---
     fg.nodeCanvasObject((node: any, ctx: CanvasRenderingContext2D, scale: number) => {
+      const b = boundsRef.current;
+      if (b && (node.x < b.x1 || node.x > b.x2 || node.y < b.y1 || node.y > b.y2)) return;
       const { colorOf, dark, selectedId, neighbors } = stateRef.current;
       const isSelected = selectedId === node.id;
       const isNeighbor =
@@ -246,8 +268,8 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
           : "rgba(11,11,11,0.25)";
       ctx.stroke();
 
-      if ((scale > 1.2 || isSelected || isNeighbor) && !dimmed) {
-        const fontSize = Math.max(11 / scale, 2.4);
+      if ((scale > 0.5 || isSelected || isNeighbor) && !dimmed) {
+        const fontSize = Math.max(12 / scale, 3.2);
         ctx.font = `${isSelected ? "600 " : ""}${fontSize}px system-ui, sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
@@ -309,13 +331,30 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
         isSelLink ||
         (selectedId !== null &&
           (l.source?.id === selectedId || l.target?.id === selectedId));
-      if (scale < 2.2 && !active) return;
+      if (scale < 1.1 && !active) return;
       if ((selectedId !== null || selectedLinkKey !== null) && !active) return;
       const sx = l.source?.x, sy = l.source?.y, tx = l.target?.x, ty = l.target?.y;
       if ([sx, sy, tx, ty].some((v) => typeof v !== "number")) return;
-      const mx = (sx + tx) / 2;
-      const my = (sy + ty) / 2;
-      const fontSize = Math.max(9 / scale, 1.8);
+      const t = l.lt ?? 0.5;
+      let mx = sx + (tx - sx) * t;
+      let my = sy + (ty - sy) * t;
+      if (l.lslot !== undefined && l.lslot !== 0) {
+        const dx = tx - sx;
+        const dy = ty - sy;
+        const len = Math.hypot(dx, dy) || 1;
+        let px = -dy / len;
+        let py = dx / len;
+        if (l.lflip) {
+          px = -px;
+          py = -py;
+        }
+        const gap = Math.max(6 / scale, 2.5);
+        mx += px * gap * l.lslot;
+        my += py * gap * l.lslot;
+      }
+      const b = boundsRef.current;
+      if (b && (mx < b.x1 || mx > b.x2 || my < b.y1 || my > b.y2)) return;
+      const fontSize = Math.max(10 / scale, 2.2);
       ctx.font = `${isSelLink ? "600 " : ""}${fontSize}px system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -364,7 +403,12 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
     fg.graphData({ nodes: nodeObjs, links: links.map((l) => ({ ...l })) });
     if (firstFitRef.current && nodes.length > 0) {
       firstFitRef.current = false;
-      setTimeout(() => fg.zoomToFit(500, 40), 700);
+      // Fit initial SAUF si une sélection est déjà demandée (focus depuis le
+      // chat) : sinon il écraserait le centrage sur le nœud sélectionné.
+      fitTimerRef.current = setTimeout(() => {
+        const { selectedId, selectedLinkKey } = stateRef.current;
+        if (!selectedId && !selectedLinkKey) fg.zoomToFit(500, 40);
+      }, 700);
     }
   }, [nodes, links]);
 
@@ -381,12 +425,15 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
   useImperativeHandle(ref, () => ({
     focusNode(id: string) {
       const fg = fgRef.current;
-      if (!fg) return;
+      if (!fg) return false;
       const node = fg.graphData().nodes.find((n: any) => n.id === id);
       if (node && typeof node.x === "number") {
+        if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
         fg.centerAt(node.x, node.y, 600);
         fg.zoom(Math.max(fg.zoom(), 3), 600);
+        return true;
       }
+      return false;
     },
     zoomToFit() {
       fgRef.current?.zoomToFit(500, 40);

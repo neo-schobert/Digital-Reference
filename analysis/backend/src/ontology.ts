@@ -433,6 +433,10 @@ export function buildGraph(): void {
   );
 }
 
+export function getFullGraph(): BuiltGraph {
+  return fullGraph;
+}
+
 export function getMeta(): Meta {
   if (!meta) throw new Error("Ontology not loaded");
   return meta;

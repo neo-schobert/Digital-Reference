@@ -85,7 +85,55 @@ export interface SparqlGraph {
 
 export type SparqlResult = SparqlBindings | SparqlBoolean | SparqlGraph;
 
+export interface ChatCitation {
+  iri: string;
+  label: string;
+  module: string;
+}
+
+export interface TraceCandidate {
+  iri: string;
+  label: string;
+  module: string;
+  kind: string;
+  score: number;
+  sem: number;
+  lex: number;
+}
+
+export interface SparqlAttempt {
+  attempt: number;
+  query: string;
+  ok?: boolean;
+  rows?: number;
+  error?: string;
+}
+
+/** Trace des étapes du pipeline GraphRAG (streamée par le backend). */
+export interface ChatTrace {
+  /** Relance réécrite en question autonome (RAG conversationnel) */
+  rewrite?: { standalone: string };
+  embed?: { dims: number; preview: number[]; tookMs: number; error?: string };
+  retrieval?: { total: number; tookMs: number; candidates: TraceCandidate[] };
+  route?: string;
+  sparqlAttempts: SparqlAttempt[];
+  graph?: { tool: string; detail?: string };
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  citations?: ChatCitation[];
+  sparql?: string;
+  sparqlFailed?: boolean;
+  trace?: ChatTrace;
+}
+
+export interface ChatReply {
+  reply: string;
+  citations?: ChatCitation[];
+  sparql?: string;
+  sparqlFailed?: boolean;
+  graph?: { tool: string; detail: string };
+  route?: string;
 }

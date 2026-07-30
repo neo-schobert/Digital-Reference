@@ -13,7 +13,8 @@ import SpriteText from "three-spritetext";
 import type { VizLink, VizNode } from "./NetworkCanvas";
 
 export interface NetworkCanvas3DHandle {
-  focusNode: (id: string) => void;
+  /** Vole vers le nœud ; false si le nœud n'est pas encore prêt. */
+  focusNode: (id: string) => boolean;
   zoomToFit: () => void;
 }
 
@@ -79,8 +80,20 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
   const registryRef = useRef(new Map<string, { mesh: THREE.Mesh; sprite: SpriteText }>());
+  const linkSpriteRef = useRef(
+    new Map<string, { sprite: SpriteText; source: string; target: string }>()
+  );
   const nodeCacheRef = useRef(new Map<string, any>());
   const firstFitRef = useRef(true);
+  const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hadSelectionRef = useRef(false);
+  // Suivi du pivot d'orbite : la cible reste collée à la sélection même si
+  // elle bouge (drag du nœud sélectionné, drag des voisins, physique).
+  const followRef = useRef<{
+    mode: "settle" | "track";
+    last: THREE.Vector3 | null;
+    getPos: () => THREE.Vector3 | null;
+  } | null>(null);
   const [axisDots, setAxisDots] = useState<AxisDot[]>([]);
 
   const neighbors = useMemo(() => {
@@ -110,25 +123,80 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     onSelectLink,
     visibleNodeIds,
     visibleLinkKeys,
-    showLabels: visibleCount <= 450,
+    showLabels: true,
   };
+
+  /* ---- LOD : ne montrer que les labels lisibles depuis la caméra ----
+     (un texte projeté sous ~6,5 px est illisible : le masquer ne retire
+     aucune information et économise des centaines de draw calls) ---- */
+  const updateLabelVisibility = useCallback(() => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    const cam = fg.camera();
+    if (!cam) return;
+    const { selectedId, selectedLinkKey, neighbors } = stateRef.current;
+    const cp = cam.position;
+    const vh = typeof fg.height === "function" ? fg.height() : 800;
+    const fovRad = (((cam as any).fov ?? 50) * Math.PI) / 180;
+    const pxPerUnit = vh / (2 * Math.tan(fovRad / 2)); // à distance 1
+    const MIN_PX = 6.5;
+    const nodeLimit = (4.6 * pxPerUnit) / MIN_PX;
+    const linkLimit = (2.6 * pxPerUnit) / MIN_PX;
+
+    registryRef.current.forEach(({ mesh, sprite }, id) => {
+      const isSel = id === selectedId;
+      const isNb =
+        selectedId !== null && (neighbors.get(selectedId)?.has(id) ?? false);
+      const dimmed = selectedId !== null && !isSel && !isNb;
+      if (dimmed) {
+        sprite.visible = false;
+        return;
+      }
+      if (isSel || isNb) {
+        sprite.visible = true;
+        return;
+      }
+      const pos = mesh.parent?.position ?? sprite.position;
+      sprite.visible = cp.distanceTo(pos) < nodeLimit;
+    });
+
+    linkSpriteRef.current.forEach(({ sprite, source, target }, key) => {
+      if (selectedId !== null || selectedLinkKey !== null) {
+        sprite.visible =
+          (selectedId !== null &&
+            (source === selectedId || target === selectedId)) ||
+          (selectedLinkKey !== null && key === selectedLinkKey);
+        return;
+      }
+      sprite.visible = cp.distanceTo(sprite.position) < linkLimit;
+    });
+  }, []);
 
   /* ---- Mise en évidence sélection : mutation directe des matériaux ---- */
   const applyHighlight = useCallback(() => {
     const fg = fgRef.current;
     if (!fg) return;
-    const { selectedId, neighbors, showLabels } = stateRef.current;
-    registryRef.current.forEach(({ mesh, sprite }, id) => {
+    const { selectedId, neighbors } = stateRef.current;
+    registryRef.current.forEach(({ mesh }, id) => {
       const isSel = id === selectedId;
       const isNb =
         selectedId !== null && (neighbors.get(selectedId)?.has(id) ?? false);
       const dim = selectedId !== null && !isSel && !isNb;
       const mat = mesh.material as THREE.MeshLambertMaterial;
       mat.opacity = dim ? 0.07 : 1;
-      sprite.visible = dim ? false : showLabels || isSel || isNb;
     });
+    updateLabelVisibility();
     fg.linkColor(fg.linkColor());
     fg.linkWidth(fg.linkWidth());
+  }, [updateLabelVisibility]);
+
+  const alignAnimRef = useRef<number | null>(null);
+
+  const cancelAlign = useCallback(() => {
+    if (alignAnimRef.current !== null) {
+      cancelAnimationFrame(alignAnimRef.current);
+      alignAnimRef.current = null;
+    }
   }, []);
 
   /* ------------------------- Instanciation ------------------------- */
@@ -138,9 +206,11 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     const FG: any = ForceGraph3D as any;
     let fg: any;
     try {
-      fg = FG.prototype
-        ? new FG(el, { controlType: "orbit" })
-        : FG({ controlType: "orbit" })(el);
+      const opts = {
+        controlType: "orbit",
+        rendererConfig: { antialias: true, powerPreference: "high-performance" },
+      };
+      fg = FG.prototype ? new FG(el, opts) : FG(opts)(el);
     } catch {
       fg = FG()(el);
     }
@@ -208,10 +278,10 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       mesh.scale.setScalar(r);
       const label: string =
         node.label.length > 30 ? node.label.slice(0, 28) + "…" : node.label;
-      const sprite = new SpriteText(label, 3.8, dark ? "#c3c2b7" : "#52514e");
+      const sprite = new SpriteText(label, 4.6, dark ? "#c3c2b7" : "#52514e");
       sprite.material.depthWrite = false;
       sprite.position.set(0, -(r + 5), 0);
-      sprite.visible = showLabels;
+      sprite.visible = false;
       group.add(mesh);
       group.add(sprite);
       registryRef.current.set(node.id, { mesh, sprite });
@@ -239,6 +309,60 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     );
     if (typeof fg.linkHoverPrecision === "function") fg.linkHoverPrecision(4);
     fg.linkLabel((l: any) => l.label ?? "");
+    // Nom de la propriété affiché au milieu des arêtes (comme WebVOWL)
+    fg.linkThreeObjectExtend(true);
+    fg.linkThreeObject((l: any) => {
+      if (l.kind !== "property" || !l.label) return null;
+      const { dark } = stateRef.current;
+      const text: string = l.label.length > 28 ? l.label.slice(0, 26) + "…" : l.label;
+      const sprite = new SpriteText(text, 2.6, dark ? "#8fa8c8" : "#5b7ca6");
+      sprite.material.depthWrite = false;
+      if (l.key) {
+        linkSpriteRef.current.set(l.key, {
+          sprite,
+          source: typeof l.source === "object" ? l.source.id : l.source,
+          target: typeof l.target === "object" ? l.target.id : l.target,
+        });
+      }
+      return sprite;
+    });
+    fg.linkPositionUpdate((obj: any, { start, end }: any, l: any) => {
+      if (!obj) return false;
+      const t = l?.lt ?? 0.5;
+      let mx = start.x + (end.x - start.x) * t;
+      let my = start.y + (end.y - start.y) * t;
+      let mz = start.z + (end.z - start.z) * t;
+      if (l?.lslot !== undefined && l.lslot !== 0) {
+        // Perpendiculaire au segment (cohérente pour la paire via lflip)
+        const ux = end.x - start.x;
+        const uy = end.y - start.y;
+        const uz = end.z - start.z;
+        let px = -uz;
+        let py = 0;
+        let pz = ux;
+        let n = Math.hypot(px, py, pz);
+        if (n < 1e-3) {
+          px = 0;
+          py = uz;
+          pz = -uy;
+          n = Math.hypot(px, py, pz) || 1;
+        }
+        px /= n;
+        py /= n;
+        pz /= n;
+        if (l.lflip) {
+          px = -px;
+          py = -py;
+          pz = -pz;
+        }
+        const gap = 3.6;
+        mx += px * gap * l.lslot;
+        my += py * gap * l.lslot;
+        mz += pz * gap * l.lslot;
+      }
+      obj.position.set(mx, my, mz);
+      return false;
+    });
     fg.linkDirectionalArrowLength(3);
     fg.linkDirectionalArrowRelPos(0.94);
 
@@ -276,12 +400,42 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
         MIDDLE: THREE.MOUSE.ROTATE,
         RIGHT: THREE.MOUSE.ROTATE,
       };
+      controls.addEventListener?.("start", cancelAlign);
     }
 
     // Gizmo : projection des axes dans le repère caméra (boucle rAF légère)
     let raf = 0;
+    let lastLod = 0;
     const lastQ = new THREE.Quaternion(0, 0, 0, 0);
     const tick = () => {
+      const nowMs = performance.now();
+      if (nowMs - lastLod > 200) {
+        lastLod = nowMs;
+        updateLabelVisibility();
+      }
+      // Pivot d'orbite : suit la sélection en continu. « settle » = rattrapage
+      // doux vers la cible, puis « track » = translation par deltas (ce qui
+      // préserve un éventuel pan manuel de l'utilisateur).
+      const follow = followRef.current;
+      if (follow && controls) {
+        if (alignAnimRef.current !== null) {
+          follow.mode = "settle"; // pivot figé pendant un alignement d'axe
+        } else {
+          const pos = follow.getPos();
+          if (pos) {
+            if (follow.mode === "settle") {
+              controls.target.lerp(pos, 0.12);
+              if (controls.target.distanceTo(pos) < 0.5) {
+                follow.mode = "track";
+                follow.last = pos.clone();
+              }
+            } else if (follow.last) {
+              controls.target.add(pos.clone().sub(follow.last));
+              follow.last = pos;
+            }
+          }
+        }
+      }
       const cam = fg.camera();
       if (cam && Math.abs(1 - Math.abs(cam.quaternion.dot(lastQ))) > 1e-6) {
         lastQ.copy(cam.quaternion);
@@ -297,6 +451,12 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     };
     raf = requestAnimationFrame(tick);
 
+    try {
+      fg.renderer()?.setPixelRatio?.(Math.min(window.devicePixelRatio || 1, 2));
+    } catch {
+      /* selon la version */
+    }
+
     const ro = new ResizeObserver(() => {
       fg.width(el.clientWidth);
       fg.height(el.clientHeight);
@@ -309,11 +469,68 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       cancelAnimationFrame(raf);
       ro.disconnect();
       fg._destructor?.();
+      cancelAlign();
       fgRef.current = null;
       registryRef.current.clear();
+      linkSpriteRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [updateLabelVisibility]);
+
+  /* ------- Sélection : surbrillance + la caméra orbite autour ------- */
+  const applySelectionTarget = useCallback(() => {
+    const { selectedId, selectedLinkKey } = stateRef.current;
+    applyHighlight();
+    const fg = fgRef.current;
+    if (!fg) return;
+    // Recentrer la cible d'orbite sur l'élément sélectionné (sans bouger la
+    // caméra) : on enregistre un getter de position vivant, la boucle rAF le
+    // suit en continu — le centrage tient donc aussi pendant les drags.
+    let getPos: (() => THREE.Vector3 | null) | null = null;
+    if (selectedId) {
+      const n = fg.graphData().nodes.find((n: any) => n.id === selectedId);
+      if (n)
+        getPos = () =>
+          typeof n.x === "number" ? new THREE.Vector3(n.x, n.y, n.z) : null;
+    } else if (selectedLinkKey) {
+      const l = fg.graphData().links.find((l: any) => l.key === selectedLinkKey);
+      if (l)
+        getPos = () =>
+          typeof l.source?.x === "number" && typeof l.target?.x === "number"
+            ? new THREE.Vector3(
+                (l.source.x + l.target.x) / 2,
+                (l.source.y + l.target.y) / 2,
+                (l.source.z + l.target.z) / 2
+              )
+            : null;
+    }
+    if (getPos) {
+      hadSelectionRef.current = true;
+      followRef.current = { mode: "settle", last: null, getPos };
+    } else if (hadSelectionRef.current) {
+      followRef.current = null;
+      // Désélection : ramener le pivot d'orbite au centre du graphe visible,
+      // sinon la rotation continue de tourner autour de l'ancienne sélection.
+      hadSelectionRef.current = false;
+      const { visibleNodeIds } = stateRef.current;
+      const nodes = fg
+        .graphData()
+        .nodes.filter(
+          (n: any) =>
+            typeof n.x === "number" &&
+            (!visibleNodeIds || visibleNodeIds.has(n.id))
+        );
+      const center = nodes.length
+        ? {
+            x: nodes.reduce((s: number, n: any) => s + n.x, 0) / nodes.length,
+            y: nodes.reduce((s: number, n: any) => s + n.y, 0) / nodes.length,
+            z: nodes.reduce((s: number, n: any) => s + n.z, 0) / nodes.length,
+          }
+        : { x: 0, y: 0, z: 0 };
+      const p = fg.camera().position;
+      fg.cameraPosition({ x: p.x, y: p.y, z: p.z }, center, 600);
+    }
+  }, [applyHighlight]);
 
   /* ------- Données : une seule fois (positions conservées ensuite) ------- */
   useEffect(() => {
@@ -321,6 +538,7 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     if (!fg) return;
     const cache = nodeCacheRef.current;
     registryRef.current.clear();
+    linkSpriteRef.current.clear();
     const nodeObjs = nodes.map((n) => {
       const existing = cache.get(n.id);
       const obj = existing ? Object.assign(existing, n) : { ...n };
@@ -328,12 +546,26 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       return obj;
     });
     fg.graphData({ nodes: nodeObjs, links: links.map((l) => ({ ...l })) });
-    applyHighlight();
+    applySelectionTarget();
+    // Les objets 3D (sphères/matériaux) sont créés de façon asynchrone après
+    // graphData : si une sélection est déjà active (focus venu du chat), on
+    // ré-applique l'estompage une fois les objets réellement en place.
+    for (const ms of [400, 1200, 2500]) {
+      setTimeout(() => {
+        const { selectedId, selectedLinkKey } = stateRef.current;
+        if (selectedId || selectedLinkKey) applyHighlight();
+      }, ms);
+    }
     if (firstFitRef.current && nodes.length > 0) {
       firstFitRef.current = false;
-      setTimeout(() => fg.zoomToFit(800, 60), 900);
+      // Fit initial SAUF si une sélection est déjà demandée (focus depuis le
+      // chat) : sinon il écraserait le vol de caméra vers la sélection.
+      fitTimerRef.current = setTimeout(() => {
+        const { selectedId, selectedLinkKey } = stateRef.current;
+        if (!selectedId && !selectedLinkKey) fg.zoomToFit(800, 60);
+      }, 900);
     }
-  }, [nodes, links, applyHighlight]);
+  }, [nodes, links, applySelectionTarget]);
 
   /* ------- Filtres : bascule de visibilité, sans reconstruction ------- */
   useEffect(() => {
@@ -346,31 +578,10 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     applyHighlight();
   }, [visibleNodeIds, visibleLinkKeys, applyHighlight]);
 
-  /* ------- Sélection : surbrillance + la caméra orbite autour ------- */
+
   useEffect(() => {
-    applyHighlight();
-    const fg = fgRef.current;
-    if (!fg) return;
-    // Recentrer la cible d'orbite sur l'élément sélectionné (sans bouger la caméra)
-    let target: { x: number; y: number; z: number } | null = null;
-    if (selectedId) {
-      const n = fg.graphData().nodes.find((n: any) => n.id === selectedId);
-      if (n && typeof n.x === "number") target = { x: n.x, y: n.y, z: n.z };
-    } else if (selectedLinkKey) {
-      const l = fg.graphData().links.find((l: any) => l.key === selectedLinkKey);
-      if (l && typeof l.source?.x === "number" && typeof l.target?.x === "number") {
-        target = {
-          x: (l.source.x + l.target.x) / 2,
-          y: (l.source.y + l.target.y) / 2,
-          z: (l.source.z + l.target.z) / 2,
-        };
-      }
-    }
-    if (target) {
-      const p = fg.camera().position;
-      fg.cameraPosition({ x: p.x, y: p.y, z: p.z }, target, 500);
-    }
-  }, [selectedId, selectedLinkKey, applyHighlight]);
+    applySelectionTarget();
+  }, [selectedId, selectedLinkKey, applySelectionTarget]);
 
   /* ------- Thème / couleurs ------- */
   useEffect(() => {
@@ -384,6 +595,9 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       }
       sprite.color = dark ? "#c3c2b7" : "#52514e";
     });
+    linkSpriteRef.current.forEach(({ sprite }) => {
+      sprite.color = dark ? "#8fa8c8" : "#5b7ca6";
+    });
     fg.linkColor(fg.linkColor());
   }, [dark, colorOf]);
 
@@ -391,9 +605,10 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
   useImperativeHandle(ref, () => ({
     focusNode(id: string) {
       const fg = fgRef.current;
-      if (!fg) return;
+      if (!fg) return false;
       const node = fg.graphData().nodes.find((n: any) => n.id === id);
       if (node && typeof node.x === "number") {
+        if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
         const dist = 130;
         const norm = Math.hypot(node.x, node.y, node.z) || 1;
         const ratio = 1 + dist / norm;
@@ -402,7 +617,9 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
           node,
           800
         );
+        return true;
       }
+      return false;
     },
     zoomToFit() {
       fgRef.current?.zoomToFit(800, 60);
@@ -410,22 +627,57 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
   }));
 
   /* ------- Alignement caméra sur un axe (gizmo) ------- */
+  /* Alignement caméra : rotation sur la sphère autour du pivot (slerp),
+     JAMAIS d'interpolation en ligne droite — une ligne droite entre deux
+     points opposés traverserait le centre du graphe et ferait partir la
+     vue en vrille. */
   const alignTo = (dir: [number, number, number]) => {
     const fg = fgRef.current;
     if (!fg) return;
+    cancelAlign();
     const cam = fg.camera();
     const controls = fg.controls();
-    const target = controls?.target ?? new THREE.Vector3(0, 0, 0);
+    const target: THREE.Vector3 =
+      controls?.target?.clone() ?? new THREE.Vector3(0, 0, 0);
     const dist = cam.position.distanceTo(target) || 400;
-    fg.cameraPosition(
-      {
-        x: target.x + dir[0] * dist,
-        y: target.y + dir[1] * dist,
-        z: target.z + dir[2] * dist,
-      },
-      { x: target.x, y: target.y, z: target.z },
-      700
-    );
+
+    // ±Y exact = pôle d'OrbitControls (rotation instable) : léger biais
+    const end = new THREE.Vector3(...dir);
+    if (Math.abs(end.y) > 0.99) end.set(0, end.y, 0.04).normalize();
+
+    const start = cam.position.clone().sub(target).normalize();
+    if (start.lengthSq() === 0) start.set(0, 0, 1);
+
+    let qFull: THREE.Quaternion;
+    if (start.dot(end) < -0.999) {
+      // Demi-tour : rotation azimutale (autour de Y), sans survoler le pôle
+      let axis = new THREE.Vector3(0, 1, 0).cross(start);
+      if (axis.lengthSq() < 1e-6) axis = new THREE.Vector3(1, 0, 0);
+      qFull = new THREE.Quaternion().setFromAxisAngle(axis.normalize(), Math.PI);
+    } else {
+      qFull = new THREE.Quaternion().setFromUnitVectors(start, end);
+    }
+
+    const identity = new THREE.Quaternion();
+    const t0 = performance.now();
+    const DURATION = 600;
+    const step = () => {
+      const t = Math.min(1, (performance.now() - t0) / DURATION);
+      const e = t * (2 - t); // ease-out
+      const q = new THREE.Quaternion().slerpQuaternions(identity, qFull, e);
+      const d = t === 1 ? end : start.clone().applyQuaternion(q);
+      fg.cameraPosition(
+        {
+          x: target.x + d.x * dist,
+          y: target.y + d.y * dist,
+          z: target.z + d.z * dist,
+        },
+        { x: target.x, y: target.y, z: target.z },
+        0
+      );
+      alignAnimRef.current = t < 1 ? requestAnimationFrame(step) : null;
+    };
+    alignAnimRef.current = requestAnimationFrame(step);
   };
 
   const R = 34;
