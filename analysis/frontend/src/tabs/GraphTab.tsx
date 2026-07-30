@@ -5,6 +5,7 @@ import { buildColorMap, NEUTRAL_DARK, NEUTRAL_LIGHT } from "../palette";
 import type { BuiltGraph, GraphLink, GraphNode, Meta } from "../types";
 import NetworkCanvas, { NetworkCanvasHandle } from "../components/NetworkCanvas";
 import NetworkCanvas3D, { NetworkCanvas3DHandle } from "../components/NetworkCanvas3D";
+import { clearPins, savePins, subscribePins, totalPinCount } from "../pinStore";
 
 type GroupMode = "lobes" | "modules";
 type ViewMode = "3d" | "2d";
@@ -39,6 +40,11 @@ export default function GraphTab({ meta, dark }: Props) {
   const [search, setSearch] = useState("");
   const canvas2dRef = useRef<NetworkCanvasHandle>(null);
   const canvas3dRef = useRef<NetworkCanvas3DHandle>(null);
+
+  // Épinglages : compteur vivant + flash de confirmation du « Save »
+  const [pinCount, setPinCount] = useState(() => totalPinCount());
+  const [pinsSaved, setPinsSaved] = useState(false);
+  useEffect(() => subscribePins(() => setPinCount(totalPinCount())), []);
 
   /* ---- Chargement UNIQUE du graphe complet : ensuite tout le filtrage est
      local, donc cocher/décocher retire les nœuds en place, sans rechargement */
@@ -434,6 +440,34 @@ export default function GraphTab({ meta, dark }: Props) {
             2D
           </button>
         </div>
+        {pinCount > 0 && (
+          <div
+            className="pin-box"
+            title="Pinned nodes — hold a dragged node still to pin it"
+          >
+            <span className="pin-count">📌 {pinCount}</span>
+            <button
+              onClick={() => {
+                savePins();
+                setPinsSaved(true);
+                setTimeout(() => setPinsSaved(false), 1400);
+              }}
+              title="Keep these pins after a page reload"
+            >
+              {pinsSaved ? "Saved ✓" : "Save"}
+            </button>
+            <button
+              onClick={() => {
+                clearPins();
+                canvas2dRef.current?.resetPins();
+                canvas3dRef.current?.resetPins();
+              }}
+              title="Unpin everything (also clears the saved pins)"
+            >
+              Reset
+            </button>
+          </div>
+        )}
         <div
           className="threshold-box"
           title="Hide nodes with fewer connections than the threshold"

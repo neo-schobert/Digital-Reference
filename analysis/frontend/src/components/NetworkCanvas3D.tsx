@@ -11,10 +11,33 @@ import ForceGraph3D from "3d-force-graph";
 import * as THREE from "three";
 import SpriteText from "three-spritetext";
 import type { VizLink, VizNode } from "./NetworkCanvas";
+import { getPin, removePin, setPin } from "../pinStore";
+
+/* Texture partagée de l'anneau « épinglé » (créée au premier usage) */
+let ringTexSingleton: THREE.CanvasTexture | null = null;
+function ringTexture(): THREE.CanvasTexture {
+  if (!ringTexSingleton) {
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const g = c.getContext("2d");
+    if (g) {
+      g.strokeStyle = "#e8a33d";
+      g.lineWidth = 4;
+      g.setLineDash([7, 5]);
+      g.beginPath();
+      g.arc(32, 32, 27, 0, Math.PI * 2);
+      g.stroke();
+    }
+    ringTexSingleton = new THREE.CanvasTexture(c);
+  }
+  return ringTexSingleton;
+}
 
 export interface NetworkCanvas3DHandle {
   focusNode: (id: string) => void;
   zoomToFit: () => void;
+  /** Libère tous les nœuds épinglés (l'élasticité reprend). */
+  resetPins: () => void;
 }
 
 interface Props {
@@ -78,7 +101,9 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
-  const registryRef = useRef(new Map<string, { mesh: THREE.Mesh; sprite: SpriteText }>());
+  const registryRef = useRef(
+    new Map<string, { mesh: THREE.Mesh; sprite: SpriteText; pin?: THREE.Sprite }>()
+  );
   const linkSpriteRef = useRef(
     new Map<string, { sprite: SpriteText; source: string; target: string }>()
   );
@@ -181,6 +206,25 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     fg.linkWidth(fg.linkWidth());
   }, [updateLabelVisibility]);
 
+  /* Anneau « épinglé » : sprite face caméra, créé paresseusement */
+  const setPinRing = useCallback((id: string, on: boolean) => {
+    const entry = registryRef.current.get(id);
+    if (!entry) return;
+    if (on && !entry.pin) {
+      const s = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: ringTexture(),
+          transparent: true,
+          depthWrite: false,
+        })
+      );
+      s.scale.setScalar(entry.mesh.scale.x * 3.1);
+      entry.mesh.parent?.add(s);
+      entry.pin = s;
+    }
+    if (entry.pin) entry.pin.visible = on;
+  }, []);
+
   const alignAnimRef = useRef<number | null>(null);
 
   const cancelAlign = useCallback(() => {
@@ -244,12 +288,73 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     };
     fg.d3Force("jitter", jitter);
 
-    // --- Drag élastique : relâcher un nœud le laisse revenir en place ---
+    // --- Drag élastique + épinglage : un nœud maintenu ~immobile en fin de
+    // drag reste fixé (fx/fy/fz) ; relâché en mouvement, il reste élastique —
+    // ce qui sert aussi à dé-épingler d'un petit coup sec.
+    // NB : les événements de drag ne tombent QUE quand la souris bouge ; le
+    // maintien immobile est donc détecté par minuterie, pas par événement. ---
+    const PIN_HOLD_MS = 850;
+    const dragState = {
+      id: null as string | null,
+      x: 0,
+      y: 0,
+      z: 0,
+      armed: false,
+      timer: null as ReturnType<typeof setTimeout> | null,
+    };
+    const armLater = (n: any) => {
+      if (dragState.timer) clearTimeout(dragState.timer);
+      dragState.timer = setTimeout(() => {
+        if (dragState.id === n.id) {
+          dragState.armed = true;
+          setPinRing(n.id, true); // l'anneau apparaît : lâcher épinglera
+        }
+      }, PIN_HOLD_MS);
+    };
+    if (typeof fg.onNodeDrag === "function") {
+      fg.onNodeDrag((n: any) => {
+        if (dragState.id !== n.id) {
+          dragState.id = n.id;
+          dragState.x = n.x;
+          dragState.y = n.y;
+          dragState.z = n.z ?? 0;
+          dragState.armed = n.__pinned === true; // re-drag d'un nœud épinglé
+          if (!dragState.armed) armLater(n);
+          return;
+        }
+        const d = Math.hypot(
+          n.x - dragState.x,
+          n.y - dragState.y,
+          (n.z ?? 0) - dragState.z
+        );
+        if (d > 2.5) {
+          dragState.x = n.x;
+          dragState.y = n.y;
+          dragState.z = n.z ?? 0;
+          if (dragState.armed) {
+            dragState.armed = false;
+            setPinRing(n.id, false); // feedback : lâcher maintenant libérera
+          }
+          armLater(n);
+        }
+      });
+    }
     if (typeof fg.onNodeDragEnd === "function") {
       fg.onNodeDragEnd((n: any) => {
-        n.fx = undefined;
-        n.fy = undefined;
-        n.fz = undefined;
+        const pin = dragState.id === n.id && dragState.armed;
+        if (dragState.timer) {
+          clearTimeout(dragState.timer);
+          dragState.timer = null;
+        }
+        dragState.id = null;
+        dragState.armed = false;
+        n.__pinned = pin;
+        n.fx = pin ? n.x : undefined;
+        n.fy = pin ? n.y : undefined;
+        n.fz = pin ? n.z : undefined;
+        setPinRing(n.id, pin);
+        if (pin) setPin("3d", n.id, [n.x, n.y, n.z]);
+        else removePin("3d", n.id);
       });
     }
 
@@ -276,6 +381,7 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       group.add(mesh);
       group.add(sprite);
       registryRef.current.set(node.id, { mesh, sprite });
+      if (node.__pinned) setPinRing(node.id, true);
       return group;
     });
 
@@ -443,7 +549,7 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       linkSpriteRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [updateLabelVisibility]);
+  }, [updateLabelVisibility, setPinRing]);
 
   /* ------- Données : une seule fois (positions conservées ensuite) ------- */
   useEffect(() => {
@@ -455,6 +561,18 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     const nodeObjs = nodes.map((n) => {
       const existing = cache.get(n.id);
       const obj = existing ? Object.assign(existing, n) : { ...n };
+      // Épinglages restaurés (session en cours ou sauvegarde « Save ») ;
+      // l'anneau est recréé par nodeThreeObject (objets reconstruits ici).
+      const pin = getPin("3d", n.id);
+      if (pin && obj.__pinned !== true) {
+        obj.x = pin[0];
+        obj.y = pin[1];
+        obj.z = pin[2];
+        obj.fx = pin[0];
+        obj.fy = pin[1];
+        obj.fz = pin[2];
+        obj.__pinned = true;
+      }
       cache.set(n.id, obj);
       return obj;
     });
@@ -562,6 +680,21 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     },
     zoomToFit() {
       fgRef.current?.zoomToFit(800, 60);
+    },
+    resetPins() {
+      const fg = fgRef.current;
+      if (!fg) return;
+      for (const n of fg.graphData().nodes) {
+        if (n.__pinned) {
+          n.__pinned = false;
+          n.fx = undefined;
+          n.fy = undefined;
+          n.fz = undefined;
+        }
+      }
+      registryRef.current.forEach((e) => {
+        if (e.pin) e.pin.visible = false;
+      });
     },
   }));
 
@@ -678,7 +811,8 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       </div>
       <div className="hint-nav">
         right-click / middle-click: rotate (around the selection) · left-click:
-        pan · wheel: zoom · drag a node: elastic stretch
+        pan · wheel: zoom · drag a node: elastic stretch · hold it still ≈1 s
+        to pin it (a quick release unpins)
       </div>
     </div>
   );

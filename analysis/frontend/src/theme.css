@@ -971,3 +971,45 @@ button:focus-visible {
   padding: 4px 10px;
   pointer-events: none;
 }
+
+/* --- Épinglage : compteur + Save / Reset (en haut au centre) --- */
+.pin-box {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-1) 80%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow);
+}
+
+.pin-box .pin-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 0 6px;
+  white-space: nowrap;
+}
+
+.pin-box button {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.pin-box button:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--surface-3) 60%, transparent);
+}

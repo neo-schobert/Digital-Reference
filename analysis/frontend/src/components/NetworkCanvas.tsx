@@ -6,6 +6,7 @@ import {
   useRef,
 } from "react";
 import ForceGraph from "force-graph";
+import { getPin, removePin, setPin } from "../pinStore";
 
 export interface VizNode {
   id: string;
@@ -32,6 +33,8 @@ export interface VizLink {
 export interface NetworkCanvasHandle {
   focusNode: (id: string) => void;
   zoomToFit: () => void;
+  /** Libère tous les nœuds épinglés (l'élasticité reprend). */
+  resetPins: () => void;
 }
 
 interface Props {
@@ -153,11 +156,59 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
     };
     fg.d3Force("jitter", jitter);
 
-    // --- Étirement élastique : le nœud relâché revient dans la disposition ---
+    // --- Étirement élastique + épinglage : un nœud maintenu ~immobile en fin
+    // de drag reste fixé sur place (fx/fy) ; relâché en mouvement, il reste
+    // élastique — ce qui sert aussi à dé-épingler d'un petit coup sec. ---
+    // NB : les événements de drag ne tombent QUE quand la souris bouge ; le
+    // maintien immobile est donc détecté par minuterie, pas par événement.
+    const PIN_HOLD_MS = 850;
+    const dragState = {
+      id: null as string | null,
+      x: 0,
+      y: 0,
+      armed: false,
+      timer: null as ReturnType<typeof setTimeout> | null,
+    };
+    const armLater = (n: any) => {
+      if (dragState.timer) clearTimeout(dragState.timer);
+      dragState.timer = setTimeout(() => {
+        if (dragState.id === n.id) dragState.armed = true; // anneau à l'écran
+      }, PIN_HOLD_MS);
+    };
+    if (typeof fg.onNodeDrag === "function") {
+      fg.onNodeDrag((n: any) => {
+        if (dragState.id !== n.id) {
+          dragState.id = n.id;
+          dragState.x = n.x;
+          dragState.y = n.y;
+          dragState.armed = n.__pinned === true; // re-drag d'un nœud épinglé
+          if (!dragState.armed) armLater(n);
+          return;
+        }
+        // Tolérance ~5 px écran : une main « à peu près immobile » suffit
+        const eps = 5 / (fg.zoom() || 1);
+        if (Math.hypot(n.x - dragState.x, n.y - dragState.y) > eps) {
+          dragState.x = n.x;
+          dragState.y = n.y;
+          dragState.armed = false; // reparti en mouvement : lâcher libérera
+          armLater(n);
+        }
+      });
+    }
     if (typeof fg.onNodeDragEnd === "function") {
       fg.onNodeDragEnd((n: any) => {
-        n.fx = null;
-        n.fy = null;
+        const pin = dragState.id === n.id && dragState.armed;
+        if (dragState.timer) {
+          clearTimeout(dragState.timer);
+          dragState.timer = null;
+        }
+        dragState.id = null;
+        dragState.armed = false;
+        n.__pinned = pin;
+        n.fx = pin ? n.x : null;
+        n.fy = pin ? n.y : null;
+        if (pin) setPin("2d", n.id, [n.x, n.y]);
+        else removePin("2d", n.id);
       });
     }
 
@@ -265,6 +316,17 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
           ? "rgba(255,255,255,0.35)"
           : "rgba(11,11,11,0.25)";
       ctx.stroke();
+
+      // Anneau d'épinglage : pendant le maintien (armé) et une fois fixé
+      if (node.__pinned || (dragState.id === node.id && dragState.armed)) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, r + 3, 0, 2 * Math.PI);
+        ctx.lineWidth = 1.4 / scale;
+        ctx.strokeStyle = "#e8a33d";
+        ctx.setLineDash([4 / scale, 3 / scale]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
 
       if ((scale > 0.5 || isSelected || isNeighbor) && !dimmed) {
         const fontSize = Math.max(12 / scale, 3.2);
@@ -395,6 +457,15 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
     const nodeObjs = nodes.map((n) => {
       const existing = cache.get(n.id);
       const obj = existing ? Object.assign(existing, n) : { ...n };
+      // Épinglages restaurés (session en cours ou sauvegarde « Save »)
+      const pin = getPin("2d", n.id);
+      if (pin && obj.__pinned !== true) {
+        obj.x = pin[0];
+        obj.y = pin[1];
+        obj.fx = pin[0];
+        obj.fy = pin[1];
+        obj.__pinned = true;
+      }
       cache.set(n.id, obj);
       return obj;
     });
@@ -427,6 +498,17 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
     },
     zoomToFit() {
       fgRef.current?.zoomToFit(500, 40);
+    },
+    resetPins() {
+      const fg = fgRef.current;
+      if (!fg) return;
+      for (const n of fg.graphData().nodes) {
+        if (n.__pinned) {
+          n.__pinned = false;
+          n.fx = null;
+          n.fy = null;
+        }
+      }
     },
   }));
 
