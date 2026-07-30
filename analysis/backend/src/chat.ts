@@ -141,7 +141,7 @@ function shrink(iri: string): string {
   return `<${iri}>`;
 }
 
-interface Card {
+export interface Card {
   iri: string;
   label: string;
   module: string;
@@ -627,6 +627,18 @@ async function runGraphTool(
     return null;
   }
 }
+
+/* ---- Accès pour le module workspace (comparaison / mapping) ---------- */
+
+export async function drIndex(): Promise<{
+  cards: Card[];
+  vectors: Float32Array[];
+}> {
+  await ensureIndex();
+  return { cards, vectors: vectors! };
+}
+
+export { embed as embedTexts, llm as llmCall, cosine, CFG as chatConfig };
 
 /* ---- Question autonome : les relances (« et pour X ? ») sont réécrites
    avec le contexte de la conversation, pour que retrieval, routeur, SPARQL

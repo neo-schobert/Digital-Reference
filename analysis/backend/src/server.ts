@@ -7,6 +7,15 @@ import {
   listChats,
   saveChat,
 } from "./chatstore.js";
+import {
+  compareToDr,
+  deleteOntology,
+  getResult,
+  importOntology,
+  listOntologies,
+  mapToDr,
+  mappedFilePath,
+} from "./workspace.js";
 import cors from "cors";
 import {
   buildGraph,
@@ -21,7 +30,7 @@ const PORT = Number(process.env.DR_BACKEND_PORT ?? 3178);
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "24mb" }));
 
 /* --- Santé ---------------------------------------------------------- */
 app.get("/api/health", (_req, res) => {
@@ -137,6 +146,60 @@ app.delete("/api/chats/:id", (req, res) => {
 
 app.delete("/api/chats", (_req, res) => {
   res.json({ ok: true, deleted: clearChats() });
+});
+
+/* --- Workspace : ontologies importées, comparaison, mapping vers le DR */
+app.get("/api/workspace/ontologies", (_req, res) => {
+  res.json(listOntologies());
+});
+
+app.post("/api/workspace/ontologies", (req, res) => {
+  const { id, name, content } = req.body ?? {};
+  if (typeof id !== "string" || typeof name !== "string" || typeof content !== "string") {
+    res.status(400).json({ error: "id, name and content are required" });
+    return;
+  }
+  try {
+    res.json(importOntology(id, name, content));
+  } catch (e) {
+    res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+app.delete("/api/workspace/ontologies/:id", (req, res) => {
+  res.json({ ok: deleteOntology(req.params.id) });
+});
+
+app.get("/api/workspace/ontologies/:id/results", (req, res) => {
+  res.json({
+    compare: getResult(req.params.id, "compare"),
+    mapping: getResult(req.params.id, "mapping"),
+  });
+});
+
+app.post("/api/workspace/ontologies/:id/compare", async (req, res) => {
+  try {
+    res.json(await compareToDr(req.params.id));
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+app.post("/api/workspace/ontologies/:id/map", async (req, res) => {
+  try {
+    res.json(await mapToDr(req.params.id));
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+app.get("/api/workspace/ontologies/:id/mapped.ttl", (req, res) => {
+  const path = mappedFilePath(req.params.id);
+  if (!path) {
+    res.status(404).json({ error: "No mapping generated yet" });
+    return;
+  }
+  res.type("text/turtle").download(path, "mapped-to-dr.ttl");
 });
 
 /* --- Démarrage ------------------------------------------------------- */

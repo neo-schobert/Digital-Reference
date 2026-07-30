@@ -6,13 +6,15 @@ import type { Meta } from "./types";
 import GraphTab from "./tabs/GraphTab";
 import SparqlTab from "./tabs/SparqlTab";
 import ChatTab from "./tabs/ChatTab";
+import WorkspaceTab from "./tabs/WorkspaceTab";
 
-type Tab = "graph" | "sparql" | "chat";
+type Tab = "graph" | "sparql" | "chat" | "workspace";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "graph", label: "Graph" },
   { id: "sparql", label: "SPARQL" },
   { id: "chat", label: "ChatBot" },
+  { id: "workspace", label: "Workspace" },
 ];
 
 function useDarkMode(): [boolean, () => void] {
@@ -63,6 +65,7 @@ export default function App() {
         {tab === "graph" && <GraphTab meta={meta} dark={dark} />}
         {tab === "sparql" && <SparqlTab meta={meta} dark={dark} />}
         {tab === "chat" && <ChatTab />}
+        {tab === "workspace" && <WorkspaceTab />}
       </div>
     );
   }, [error, meta, tab, dark]);

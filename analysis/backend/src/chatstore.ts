@@ -16,7 +16,8 @@ const { DatabaseSync } = require("node:sqlite") as any;
 const DATA_DIR = resolve(join(import.meta.dirname, "..", "..", ".data"));
 mkdirSync(DATA_DIR, { recursive: true });
 
-const db = new DatabaseSync(join(DATA_DIR, "chats.db"));
+export const db = new DatabaseSync(join(DATA_DIR, "chats.db"));
+export { DATA_DIR };
 db.exec(`
   CREATE TABLE IF NOT EXISTS chats (
     id            TEXT PRIMARY KEY,
