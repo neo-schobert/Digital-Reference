@@ -1,8 +1,14 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { runSparql } from "../api";
 import { localName, toCurie } from "../curie";
 import { buildColorMap, NEUTRAL_DARK, NEUTRAL_LIGHT } from "../palette";
 import type { Meta, RdfTerm, SparqlResult } from "../types";
+
+// État conservé entre montages de l'onglet (un seul onglet monté à la fois).
+const savedSparql: { query: string | null; result: SparqlResult | null } = {
+  query: null,
+  result: null,
+};
 import NetworkCanvas from "../components/NetworkCanvas";
 
 const SAMPLES: { name: string; query: string }[] = [
@@ -98,9 +104,13 @@ function csvEscape(v: string): string {
 }
 
 export default function SparqlTab({ meta, dark }: Props) {
-  const [query, setQuery] = useState(SAMPLES[0].query);
-  const [result, setResult] = useState<SparqlResult | null>(null);
+  const [query, setQuery] = useState(savedSparql.query ?? SAMPLES[0].query);
+  const [result, setResult] = useState<SparqlResult | null>(savedSparql.result);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    savedSparql.query = query;
+    savedSparql.result = result;
+  }, [query, result]);
   const [running, setRunning] = useState(false);
   const [view, setView] = useState<"list" | "graph">("list");
   const [checked, setChecked] = useState<Set<number>>(new Set());
