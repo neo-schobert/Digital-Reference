@@ -30,7 +30,8 @@ export interface VizLink {
 }
 
 export interface NetworkCanvasHandle {
-  focusNode: (id: string) => void;
+  /** Centre la vue sur le nœud ; false si le nœud n'est pas encore prêt. */
+  focusNode: (id: string) => boolean;
   zoomToFit: () => void;
 }
 
@@ -79,6 +80,7 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
   const boundsRef = useRef<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const nodeCacheRef = useRef(new Map<string, any>());
   const firstFitRef = useRef(true);
+  const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Voisinage restreint aux arêtes visibles (pour la mise en évidence)
   const neighbors = useMemo(() => {
@@ -401,7 +403,12 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
     fg.graphData({ nodes: nodeObjs, links: links.map((l) => ({ ...l })) });
     if (firstFitRef.current && nodes.length > 0) {
       firstFitRef.current = false;
-      setTimeout(() => fg.zoomToFit(500, 40), 700);
+      // Fit initial SAUF si une sélection est déjà demandée (focus depuis le
+      // chat) : sinon il écraserait le centrage sur le nœud sélectionné.
+      fitTimerRef.current = setTimeout(() => {
+        const { selectedId, selectedLinkKey } = stateRef.current;
+        if (!selectedId && !selectedLinkKey) fg.zoomToFit(500, 40);
+      }, 700);
     }
   }, [nodes, links]);
 
@@ -418,12 +425,15 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
   useImperativeHandle(ref, () => ({
     focusNode(id: string) {
       const fg = fgRef.current;
-      if (!fg) return;
+      if (!fg) return false;
       const node = fg.graphData().nodes.find((n: any) => n.id === id);
       if (node && typeof node.x === "number") {
+        if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
         fg.centerAt(node.x, node.y, 600);
         fg.zoom(Math.max(fg.zoom(), 3), 600);
+        return true;
       }
+      return false;
     },
     zoomToFit() {
       fgRef.current?.zoomToFit(500, 40);
