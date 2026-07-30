@@ -132,6 +132,108 @@ export async function clearChats(): Promise<void> {
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 }
 
+/* ---- Workspace : ontologies importées, comparaison, mapping DR ---- */
+
+export interface WsOntology {
+  id: string;
+  name: string;
+  createdAt: number;
+  triples: number;
+  classes: number;
+  properties: number;
+  hasCompare: boolean;
+  hasMapping: boolean;
+  linkScore?: number;
+  similarityScore?: number;
+}
+
+export interface CompareReport {
+  createdAt: number;
+  totalClasses: number;
+  analyzed: number;
+  truncated: number;
+  similarityScore: number;
+  buckets: { strong: number; medium: number; weak: number };
+  matches: {
+    source: string;
+    sourceIri: string;
+    target: string;
+    targetIri: string;
+    module: string;
+    score: number;
+  }[];
+}
+
+export interface MappingEntry {
+  source: string;
+  sourceIri: string;
+  relation: "equivalent" | "subclass" | "related" | "none";
+  target?: string;
+  targetIri?: string;
+  confidence?: number;
+}
+
+export interface MappingReport {
+  createdAt: number;
+  totalClasses: number;
+  truncated: number;
+  linkScore: number;
+  counts: { equivalent: number; subclass: number; related: number; none: number };
+  entries: MappingEntry[];
+  file: string;
+}
+
+export function listWsOntologies(): Promise<WsOntology[]> {
+  return getJson<WsOntology[]>("/api/workspace/ontologies");
+}
+
+export async function importWsOntology(
+  id: string,
+  name: string,
+  content: string
+): Promise<WsOntology> {
+  const res = await fetch("/api/workspace/ontologies", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, name, content }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error ?? `${res.status} ${res.statusText}`);
+  return body as WsOntology;
+}
+
+export async function deleteWsOntology(id: string): Promise<void> {
+  const res = await fetch(`/api/workspace/ontologies/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+}
+
+export function loadWsResults(
+  id: string
+): Promise<{ compare: CompareReport | null; mapping: MappingReport | null }> {
+  return getJson(`/api/workspace/ontologies/${encodeURIComponent(id)}/results`);
+}
+
+async function postJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, { method: "POST" });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error ?? `${res.status} ${res.statusText}`);
+  return body as T;
+}
+
+export function compareOntology(id: string): Promise<CompareReport> {
+  return postJson(`/api/workspace/ontologies/${encodeURIComponent(id)}/compare`);
+}
+
+export function mapOntology(id: string): Promise<MappingReport> {
+  return postJson(`/api/workspace/ontologies/${encodeURIComponent(id)}/map`);
+}
+
+export function mappedTtlUrl(id: string): string {
+  return `/api/workspace/ontologies/${encodeURIComponent(id)}/mapped.ttl`;
+}
+
 export function fileUrl(name: string): string {
   return `/api/files/${encodeURIComponent(name)}`;
 }
