@@ -1996,3 +1996,264 @@ button:focus-visible {
   color: var(--text-secondary);
 }
 
+/* --- Workspace : ontologies importées -------------------------------- */
+.ws-page {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+.ws-side {
+  flex: 0 0 260px;
+  border-right: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 10px;
+  background: var(--surface-1);
+  min-height: 0;
+}
+
+.ws-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 18px;
+  gap: 10px;
+}
+
+.ws-error {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border: 1px solid var(--danger);
+  font-size: 12.5px;
+}
+
+.ws-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ws-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.ws-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ws-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--hairline);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: none;
+}
+
+.ws-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ws-btn.primary {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ws-btn.primary:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.ws-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ws-progress {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.ws-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.ws-tab {
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.ws-tab.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.ws-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.ws-buckets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  max-width: 560px;
+}
+
+.ws-bucket {
+  position: relative;
+  height: 22px;
+  background: var(--surface-3);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ws-bucket-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 6px;
+  transition: width 0.6s ease;
+}
+
+.ws-bucket-bar.strong { background: #2fa14688; }
+.ws-bucket-bar.medium { background: #eda10088; }
+.ws-bucket-bar.weak { background: #e3494866; }
+
+.ws-bucket-label {
+  position: relative;
+  font-size: 11.5px;
+  line-height: 22px;
+  padding-left: 8px;
+  color: var(--text-primary);
+}
+
+.ws-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.ws-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--hairline);
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+}
+
+.ws-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.ws-table tr.ws-none td {
+  opacity: 0.55;
+}
+
+.ws-muted {
+  color: var(--text-muted);
+}
+
+.ws-link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline dashed;
+  text-underline-offset: 2px;
+}
+
+.ws-score { font-variant-numeric: tabular-nums; font-weight: 600; }
+.ws-score.strong { color: #2fa146; }
+.ws-score.medium { color: #eda100; }
+.ws-score.weak { color: var(--danger); }
+
+.ws-rel {
+  font-size: 11.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  white-space: nowrap;
+}
+
+.ws-rel.equivalent { color: #2fa146; border-color: #2fa146; }
+.ws-rel.subclass { color: var(--accent); border-color: var(--accent); }
+.ws-rel.related { color: #eda100; border-color: #eda100; }
+.ws-rel.none { color: var(--text-muted); }
+
+/* --- Workspace : badge de score de liaison --------------------------- */
+.ws-scorebadge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 6px;
+}
+
+.ws-donut {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.ws-donut::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: var(--surface-2);
+}
+
+.ws-donut span {
+  position: relative;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-scorebadge-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: 64px;
+  line-height: 1.25;
+}
