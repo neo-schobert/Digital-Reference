@@ -1,4 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  consumeGraphFocus,
+  onGraphFocus,
+  stashGraphFocus,
+  type GraphFocusRequest,
+} from "../bus";
+
+// Cache module : le graphe complet n'est téléchargé qu'une fois, même si
+// l'onglet est démonté/remonté (un seul onglet vit à la fois).
+let graphCache: BuiltGraph | null = null;
 import { fetchGraph, fileUrl } from "../api";
 import { toCurie } from "../curie";
 import { buildColorMap, NEUTRAL_DARK, NEUTRAL_LIGHT } from "../palette";
@@ -46,13 +56,92 @@ export default function GraphTab({ meta, dark }: Props) {
   const [pinsSaved, setPinsSaved] = useState(false);
   useEffect(() => subscribePins(() => setPinCount(totalPinCount())), []);
 
+  /* ---- Focus demandé par le chatbot (nœud ou relation mentionnés) ---- */
+  useEffect(() => {
+    const ensureVisible = (iri: string) => {
+      const n = fullGraph.nodes.find((x) => x.id === iri);
+      if (!n) return;
+      if (n.degree < minDegree) setMinDegree(0);
+      if (groupMode === "lobes") {
+        const visible =
+          n.lobes.some((l) => selectedLobes.has(l)) ||
+          (selectedLobes.has(NO_LOBE) && n.lobes.length === 0);
+        if (!visible)
+          setSelectedLobes(
+            (prev) => new Set([...prev, ...(n.lobes.length ? n.lobes : [NO_LOBE])])
+          );
+      } else if (!selectedModules.has(n.module)) {
+        setSelectedModules((prev) => new Set([...prev, n.module]));
+      }
+    };
+    const apply = (r: GraphFocusRequest) => {
+      consumeGraphFocus();
+      if (fullGraph.nodes.length === 0) {
+        stashGraphFocus(r); // ré-appliquée quand le graphe sera chargé
+        return;
+      }
+      let focusIri: string | null = null;
+      if ("iri" in r) {
+        ensureVisible(r.iri);
+        setSelectedLinkKey(null);
+        setSelectedId(r.iri);
+        focusIri = r.iri;
+      } else {
+        const between = fullGraph.links.filter(
+          (l) =>
+            (l.source === r.from && l.target === r.to) ||
+            (l.source === r.to && l.target === r.from)
+        );
+        const link =
+          between.find((l) =>
+            r.via === "subClassOf" ? l.type === "subclass" : l.label === r.via
+          ) ?? between[0];
+        ensureVisible(r.from);
+        ensureVisible(r.to);
+        if (link) {
+          if (!showSubclass && link.type === "subclass") setShowSubclass(true);
+          if (!showProperties && link.type === "property") setShowProperties(true);
+          setSelectedId(null);
+          setSelectedLinkKey(linkKey(link));
+          focusIri = link.source;
+        } else {
+          setSelectedLinkKey(null);
+          setSelectedId(r.from);
+          focusIri = r.from;
+        }
+      }
+      if (focusIri) {
+        const iri = focusIri;
+        // Le canvas peut encore être en train de charger/positionner : on
+        // réessaie jusqu'à ce que le vol de caméra ait réellement eu lieu.
+        let tries = 0;
+        const timer = setInterval(() => {
+          tries++;
+          const ok =
+            (canvas3dRef.current?.focusNode(iri) ?? false) ||
+            (canvas2dRef.current?.focusNode(iri) ?? false);
+          if (ok || tries > 25) clearInterval(timer);
+        }, 200);
+      }
+    };
+    const pending = consumeGraphFocus();
+    if (pending) apply(pending);
+    return onGraphFocus(apply);
+  }, [fullGraph, groupMode, selectedLobes, selectedModules, minDegree, showSubclass, showProperties]);
+
   /* ---- Chargement UNIQUE du graphe complet : ensuite tout le filtrage est
      local, donc cocher/décocher retire les nœuds en place, sans rechargement */
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    if (graphCache) {
+      setFullGraph(graphCache);
+      setLoading(false);
+      return;
+    }
     fetchGraph({})
       .then((g) => {
+        graphCache = g;
         if (!cancelled) setFullGraph(g);
       })
       .catch((e) => console.error(e))

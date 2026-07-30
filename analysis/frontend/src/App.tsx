@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchMeta } from "./api";
+import { onGraphFocus } from "./bus";
 import { setPrefixes } from "./curie";
 import type { Meta } from "./types";
 import GraphTab from "./tabs/GraphTab";
@@ -30,6 +31,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [dark, toggleDark] = useDarkMode();
 
+  useEffect(() => onGraphFocus(() => setTab("graph")), []);
+
   useEffect(() => {
     fetchMeta()
       .then((m) => {
@@ -52,19 +55,15 @@ export default function App() {
     if (!meta) {
       return <div className="empty-hint">Loading the ontology…</div>;
     }
-    // Les trois onglets restent montés pour conserver leur état
+    // Un seul onglet monté à la fois : quitter Graph libère la scène WebGL
+    // et la simulation ; l'état persistant (messages du chat, requête SPARQL,
+    // graphe téléchargé) est conservé au niveau module dans chaque onglet.
     return (
-      <>
-        <div className="tab-panel" hidden={tab !== "graph"}>
-          <GraphTab meta={meta} dark={dark} />
-        </div>
-        <div className="tab-panel" hidden={tab !== "sparql"}>
-          <SparqlTab meta={meta} dark={dark} />
-        </div>
-        <div className="tab-panel" hidden={tab !== "chat"}>
-          <ChatTab />
-        </div>
-      </>
+      <div className="tab-panel">
+        {tab === "graph" && <GraphTab meta={meta} dark={dark} />}
+        {tab === "sparql" && <SparqlTab meta={meta} dark={dark} />}
+        {tab === "chat" && <ChatTab />}
+      </div>
     );
   }, [error, meta, tab, dark]);
 

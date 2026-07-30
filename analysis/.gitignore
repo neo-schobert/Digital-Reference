@@ -4,3 +4,6 @@ dist/
 *.log
 .vite/
 src-broken-ntfs/
+.env
+.cache/
+.data/

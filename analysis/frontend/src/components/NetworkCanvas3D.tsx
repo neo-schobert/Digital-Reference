@@ -34,7 +34,8 @@ function ringTexture(): THREE.CanvasTexture {
 }
 
 export interface NetworkCanvas3DHandle {
-  focusNode: (id: string) => void;
+  /** Vole vers le nœud ; false si le nœud n'est pas encore prêt. */
+  focusNode: (id: string) => boolean;
   zoomToFit: () => void;
   /** Libère tous les nœuds épinglés (l'élasticité reprend). */
   resetPins: () => void;
@@ -109,7 +110,15 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
   );
   const nodeCacheRef = useRef(new Map<string, any>());
   const firstFitRef = useRef(true);
+  const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hadSelectionRef = useRef(false);
+  // Suivi du pivot d'orbite : la cible reste collée à la sélection même si
+  // elle bouge (drag du nœud sélectionné, drag des voisins, physique).
+  const followRef = useRef<{
+    mode: "settle" | "track";
+    last: THREE.Vector3 | null;
+    getPos: () => THREE.Vector3 | null;
+  } | null>(null);
   const [axisDots, setAxisDots] = useState<AxisDot[]>([]);
 
   const neighbors = useMemo(() => {
@@ -510,6 +519,29 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
         lastLod = nowMs;
         updateLabelVisibility();
       }
+      // Pivot d'orbite : suit la sélection en continu. « settle » = rattrapage
+      // doux vers la cible, puis « track » = translation par deltas (ce qui
+      // préserve un éventuel pan manuel de l'utilisateur).
+      const follow = followRef.current;
+      if (follow && controls) {
+        if (alignAnimRef.current !== null) {
+          follow.mode = "settle"; // pivot figé pendant un alignement d'axe
+        } else {
+          const pos = follow.getPos();
+          if (pos) {
+            if (follow.mode === "settle") {
+              controls.target.lerp(pos, 0.12);
+              if (controls.target.distanceTo(pos) < 0.5) {
+                follow.mode = "track";
+                follow.last = pos.clone();
+              }
+            } else if (follow.last) {
+              controls.target.add(pos.clone().sub(follow.last));
+              follow.last = pos;
+            }
+          }
+        }
+      }
       const cam = fg.camera();
       if (cam && Math.abs(1 - Math.abs(cam.quaternion.dot(lastQ))) > 1e-6) {
         lastQ.copy(cam.quaternion);
@@ -551,6 +583,61 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateLabelVisibility, setPinRing]);
 
+  /* ------- Sélection : surbrillance + la caméra orbite autour ------- */
+  const applySelectionTarget = useCallback(() => {
+    const { selectedId, selectedLinkKey } = stateRef.current;
+    applyHighlight();
+    const fg = fgRef.current;
+    if (!fg) return;
+    // Recentrer la cible d'orbite sur l'élément sélectionné (sans bouger la
+    // caméra) : on enregistre un getter de position vivant, la boucle rAF le
+    // suit en continu — le centrage tient donc aussi pendant les drags.
+    let getPos: (() => THREE.Vector3 | null) | null = null;
+    if (selectedId) {
+      const n = fg.graphData().nodes.find((n: any) => n.id === selectedId);
+      if (n)
+        getPos = () =>
+          typeof n.x === "number" ? new THREE.Vector3(n.x, n.y, n.z) : null;
+    } else if (selectedLinkKey) {
+      const l = fg.graphData().links.find((l: any) => l.key === selectedLinkKey);
+      if (l)
+        getPos = () =>
+          typeof l.source?.x === "number" && typeof l.target?.x === "number"
+            ? new THREE.Vector3(
+                (l.source.x + l.target.x) / 2,
+                (l.source.y + l.target.y) / 2,
+                (l.source.z + l.target.z) / 2
+              )
+            : null;
+    }
+    if (getPos) {
+      hadSelectionRef.current = true;
+      followRef.current = { mode: "settle", last: null, getPos };
+    } else if (hadSelectionRef.current) {
+      followRef.current = null;
+      // Désélection : ramener le pivot d'orbite au centre du graphe visible,
+      // sinon la rotation continue de tourner autour de l'ancienne sélection.
+      hadSelectionRef.current = false;
+      const { visibleNodeIds } = stateRef.current;
+      const nodes = fg
+        .graphData()
+        .nodes.filter(
+          (n: any) =>
+            typeof n.x === "number" &&
+            (!visibleNodeIds || visibleNodeIds.has(n.id))
+        );
+      const center = nodes.length
+        ? {
+            x: nodes.reduce((s: number, n: any) => s + n.x, 0) / nodes.length,
+            y: nodes.reduce((s: number, n: any) => s + n.y, 0) / nodes.length,
+            z: nodes.reduce((s: number, n: any) => s + n.z, 0) / nodes.length,
+          }
+        : { x: 0, y: 0, z: 0 };
+      const p = fg.camera().position;
+      fg.cameraPosition({ x: p.x, y: p.y, z: p.z }, center, 600);
+    }
+  }, [applyHighlight]);
+
   /* ------- Données : une seule fois (positions conservées ensuite) ------- */
   useEffect(() => {
     const fg = fgRef.current;
@@ -577,12 +664,26 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       return obj;
     });
     fg.graphData({ nodes: nodeObjs, links: links.map((l) => ({ ...l })) });
-    applyHighlight();
+    applySelectionTarget();
+    // Les objets 3D (sphères/matériaux) sont créés de façon asynchrone après
+    // graphData : si une sélection est déjà active (focus venu du chat), on
+    // ré-applique l'estompage une fois les objets réellement en place.
+    for (const ms of [400, 1200, 2500]) {
+      setTimeout(() => {
+        const { selectedId, selectedLinkKey } = stateRef.current;
+        if (selectedId || selectedLinkKey) applyHighlight();
+      }, ms);
+    }
     if (firstFitRef.current && nodes.length > 0) {
       firstFitRef.current = false;
-      setTimeout(() => fg.zoomToFit(800, 60), 900);
+      // Fit initial SAUF si une sélection est déjà demandée (focus depuis le
+      // chat) : sinon il écraserait le vol de caméra vers la sélection.
+      fitTimerRef.current = setTimeout(() => {
+        const { selectedId, selectedLinkKey } = stateRef.current;
+        if (!selectedId && !selectedLinkKey) fg.zoomToFit(800, 60);
+      }, 900);
     }
-  }, [nodes, links, applyHighlight]);
+  }, [nodes, links, applySelectionTarget]);
 
   /* ------- Filtres : bascule de visibilité, sans reconstruction ------- */
   useEffect(() => {
@@ -595,53 +696,10 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
     applyHighlight();
   }, [visibleNodeIds, visibleLinkKeys, applyHighlight]);
 
-  /* ------- Sélection : surbrillance + la caméra orbite autour ------- */
+
   useEffect(() => {
-    applyHighlight();
-    const fg = fgRef.current;
-    if (!fg) return;
-    // Recentrer la cible d'orbite sur l'élément sélectionné (sans bouger la caméra)
-    let target: { x: number; y: number; z: number } | null = null;
-    if (selectedId) {
-      const n = fg.graphData().nodes.find((n: any) => n.id === selectedId);
-      if (n && typeof n.x === "number") target = { x: n.x, y: n.y, z: n.z };
-    } else if (selectedLinkKey) {
-      const l = fg.graphData().links.find((l: any) => l.key === selectedLinkKey);
-      if (l && typeof l.source?.x === "number" && typeof l.target?.x === "number") {
-        target = {
-          x: (l.source.x + l.target.x) / 2,
-          y: (l.source.y + l.target.y) / 2,
-          z: (l.source.z + l.target.z) / 2,
-        };
-      }
-    }
-    if (target) {
-      hadSelectionRef.current = true;
-      const p = fg.camera().position;
-      fg.cameraPosition({ x: p.x, y: p.y, z: p.z }, target, 500);
-    } else if (hadSelectionRef.current) {
-      // Désélection : ramener le pivot d'orbite au centre du graphe visible,
-      // sinon la rotation continue de tourner autour de l'ancienne sélection.
-      hadSelectionRef.current = false;
-      const { visibleNodeIds } = stateRef.current;
-      const nodes = fg
-        .graphData()
-        .nodes.filter(
-          (n: any) =>
-            typeof n.x === "number" &&
-            (!visibleNodeIds || visibleNodeIds.has(n.id))
-        );
-      const center = nodes.length
-        ? {
-            x: nodes.reduce((s: number, n: any) => s + n.x, 0) / nodes.length,
-            y: nodes.reduce((s: number, n: any) => s + n.y, 0) / nodes.length,
-            z: nodes.reduce((s: number, n: any) => s + n.z, 0) / nodes.length,
-          }
-        : { x: 0, y: 0, z: 0 };
-      const p = fg.camera().position;
-      fg.cameraPosition({ x: p.x, y: p.y, z: p.z }, center, 600);
-    }
-  }, [selectedId, selectedLinkKey, applyHighlight]);
+    applySelectionTarget();
+  }, [selectedId, selectedLinkKey, applySelectionTarget]);
 
   /* ------- Thème / couleurs ------- */
   useEffect(() => {
@@ -665,9 +723,10 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
   useImperativeHandle(ref, () => ({
     focusNode(id: string) {
       const fg = fgRef.current;
-      if (!fg) return;
+      if (!fg) return false;
       const node = fg.graphData().nodes.find((n: any) => n.id === id);
       if (node && typeof node.x === "number") {
+        if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
         const dist = 130;
         const norm = Math.hypot(node.x, node.y, node.z) || 1;
         const ratio = 1 + dist / norm;
@@ -676,7 +735,9 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
           node,
           800
         );
+        return true;
       }
+      return false;
     },
     zoomToFit() {
       fgRef.current?.zoomToFit(800, 60);
