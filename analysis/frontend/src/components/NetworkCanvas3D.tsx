@@ -940,31 +940,81 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
       controls?.target?.clone() ?? new THREE.Vector3(0, 0, 0);
     const dist = cam.position.distanceTo(target) || 400;
 
-    // ±Y exact = pôle d'OrbitControls (rotation instable) : léger biais
-    const end = new THREE.Vector3(...dir);
-    if (Math.abs(end.y) > 0.99) end.set(0, end.y, 0.04).normalize();
-
     const start = cam.position.clone().sub(target).normalize();
     if (start.lengthSq() === 0) start.set(0, 0, 1);
 
-    let qFull: THREE.Quaternion;
-    if (start.dot(end) < -0.999) {
-      // Demi-tour : rotation azimutale (autour de Y), sans survoler le pôle
-      let axis = new THREE.Vector3(0, 1, 0).cross(start);
-      if (axis.lengthSq() < 1e-6) axis = new THREE.Vector3(1, 0, 0);
-      qFull = new THREE.Quaternion().setFromAxisAngle(axis.normalize(), Math.PI);
-    } else {
-      qFull = new THREE.Quaternion().setFromUnitVectors(start, end);
+    // ±Y = pôle d'OrbitControls : léger biais hors du pôle, dans l'azimut
+    // courant (on monte/descend le long de son propre méridien).
+    const end = new THREE.Vector3(...dir);
+    if (Math.abs(end.y) > 0.99) {
+      const h = new THREE.Vector3(start.x, 0, start.z);
+      if (h.lengthSq() < 1e-4) h.set(0, 0, 1);
+      h.normalize();
+      end.set(h.x * 0.04, end.y, h.z * 0.04).normalize();
     }
 
-    const identity = new THREE.Quaternion();
+    if (start.dot(end) > 0.999) return; // déjà aligné : ne rien faire
+
+    // Interpolation en coordonnées SPHÉRIQUES (azimut/élévation), comme une
+    // orbite à la souris : l'azimut tourne par le plus court chemin pendant
+    // que l'élévation glisse vers la cible — jamais de passage par un pôle.
+    // (Le slerp géodésique faisait claquer l'azimut — et donc tout le
+    // repère — en quittant ou en traversant un pôle ; vérifié par
+    // simulation : saut max/frame 2.0 → 0.17.)
+    const sph0 = new THREE.Spherical().setFromVector3(start);
+    const sph1 = new THREE.Spherical().setFromVector3(end);
+    let dTheta = sph1.theta - sph0.theta;
+    dTheta =
+      ((((dTheta + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) -
+      Math.PI;
+    const dPhi = sph1.phi - sph0.phi;
+
+    // Grands changements d'azimut depuis/vers un pôle : mélanger azimut et
+    // inclinaison donne un tire-bouchon. On SÉQUENCE donc les deux phases :
+    // partir d'un pôle = pivot à plat d'abord (vu de dessus, l'azimut est
+    // une rotation à plat du graphe, lisible), puis descente en inclinaison
+    // PURE le long du méridien cible — et l'inverse pour finir sur un pôle.
+    const nearPole = (phi: number) => Math.min(phi, Math.PI - phi) < 0.5;
+    let phased: "spin-first" | "spin-last" | null = null;
+    if (Math.abs(dTheta) > 0.5) {
+      if (nearPole(sph0.phi)) phased = "spin-first";
+      else if (nearPole(sph1.phi)) phased = "spin-last";
+    }
+    const smooth = (r: number) => {
+      const c = Math.min(1, Math.max(0, r));
+      return c * c * (3 - 2 * c); // smoothstep
+    };
+    // Le pivot progresse sur le temps BRUT t (vitesse constante, non
+    // amplifiée par l'ease-out) ; l'élévation garde l'ease-out. Les deux
+    // phases se chevauchent à peine (fin de pivot ≈ début de descente).
+    const thetaProg = (t: number, e: number) =>
+      phased === "spin-first"
+        ? smooth(t / 0.35)
+        : phased === "spin-last"
+          ? smooth((t - 0.65) / 0.35)
+          : e;
+    const phiProg = (e: number) =>
+      phased === "spin-first"
+        ? smooth((e - 0.5) / 0.5)
+        : phased === "spin-last"
+          ? smooth(e / 0.55)
+          : e;
+
     const t0 = performance.now();
-    const DURATION = 600;
+    // Durée proportionnelle à l'angle à pivoter (vitesse angulaire bornée)
+    const DURATION = phased
+      ? 600 + (700 * Math.abs(dTheta)) / Math.PI
+      : 600;
     const step = () => {
       const t = Math.min(1, (performance.now() - t0) / DURATION);
       const e = t * (2 - t); // ease-out
-      const q = new THREE.Quaternion().slerpQuaternions(identity, qFull, e);
-      const d = t === 1 ? end : start.clone().applyQuaternion(q);
+      const d = new THREE.Vector3().setFromSpherical(
+        new THREE.Spherical(
+          1,
+          sph0.phi + dPhi * phiProg(e),
+          sph0.theta + dTheta * thetaProg(t, e)
+        )
+      );
       fg.cameraPosition(
         {
           x: target.x + d.x * dist,
