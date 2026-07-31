@@ -2215,3 +2215,525 @@ button:focus-visible {
   max-width: 64px;
   line-height: 1.25;
 }
+
+/* --- Sélecteur de couches d'ontologies (haut gauche du graphe) ------- */
+.layers-box {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 30;
+  background: color-mix(in srgb, var(--surface-1) 72%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 260px;
+  box-shadow: var(--shadow);
+}
+
+.layers-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.layers-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: default;
+}
+
+.layers-row input[type="checkbox"] {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.layers-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 110px;
+}
+
+.layers-seg {
+  margin-left: auto;
+  display: inline-flex;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.layers-seg button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  padding: 2px 7px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.layers-seg button + button {
+  border-left: 1px solid var(--hairline);
+}
+
+.layers-seg button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.layers-seg button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* --- Chatbot : barre de contexte (ontologies du Workspace) ----------- */
+.ctx-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 2px 2px 0;
+}
+
+.ctx-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.ctx-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--surface-1);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.ctx-chip.fixed {
+  cursor: default;
+  color: var(--text-secondary);
+  border-style: dashed;
+}
+
+.ctx-chip.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ctx-chip:not(.fixed):not(.on):hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* --- Panneaux robustes quand il y a beaucoup d'ontologies ------------ */
+.layers-toggle {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+  font-family: inherit;
+}
+
+.layers-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 38vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.layers-filter {
+  border: 1px solid var(--hairline);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: 11.5px;
+  padding: 3px 8px;
+  font-family: inherit;
+  outline: none;
+  margin: 2px 0;
+}
+
+.layers-filter:focus {
+  border-color: var(--accent);
+}
+
+.ctx-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-height: 58px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- Chargement progressif du graphe --------------------------------- */
+.reveal-progress {
+  color: var(--accent);
+  font-weight: 600;
+  animation: pipePulse 1.2s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* --- Sélection d'une couche entière (clic sur son nom) --------------- */
+.layers-name.clickable {
+  cursor: pointer;
+}
+
+.layers-name.clickable:hover {
+  text-decoration: underline dashed;
+  text-underline-offset: 2px;
+}
+
+.layers-name.focused {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* --- Épinglage : compteur + Save / Reset (à droite du sélecteur 2D/3D) --- */
+.pin-box {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-1) 80%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow);
+}
+
+.pin-box .pin-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 0 6px;
+  white-space: nowrap;
+}
+
+.pin-box button {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.pin-box button:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--surface-3) 60%, transparent);
+}
+
+/* --- Facettes de similarité (Workspace) --- */
+.ws-facets {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 76px;
+  max-width: 110px;
+}
+.ws-facet {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.ws-facet-name {
+  font-size: 9px;
+  line-height: 1;
+  width: 20px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ws-facet-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.ws-facet-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+}
+.ws-important {
+  margin-left: 5px;
+  font-size: 11px;
+  color: #eda100;
+  cursor: default;
+}
+
+/* --- Mode Split : extraction structurelle exportable (bas gauche) ---- */
+.split-launch {
+  position: absolute;
+  bottom: 64px; /* au-dessus de l'aide navigation (hint-nav, bas gauche) */
+  left: 14px;
+  z-index: 30;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--surface-1) 80%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.split-launch:hover {
+  color: var(--text-primary);
+}
+
+.split-box {
+  position: absolute;
+  bottom: 64px; /* au-dessus de l'aide navigation (hint-nav, bas gauche) */
+  left: 14px;
+  z-index: 31;
+  width: 256px;
+  background: color-mix(in srgb, var(--surface-1) 82%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: var(--shadow);
+}
+
+.split-head {
+  display: flex;
+  align-items: center;
+}
+
+.split-head .layers-title {
+  margin-bottom: 0;
+}
+
+.split-close {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+  font-family: inherit;
+}
+
+.split-close:hover {
+  color: var(--text-primary);
+}
+
+.split-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 52vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.split-section {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.split-hint {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.split-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.split-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  color: var(--text-primary);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 1px 4px 1px 8px;
+  max-width: 100%;
+}
+
+.split-chip button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 3px;
+  border-radius: 999px;
+  font-family: inherit;
+}
+
+.split-chip button:hover {
+  color: #e34948;
+}
+
+.split-results {
+  display: flex;
+  flex-direction: column;
+}
+
+.split-results button {
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 3px 6px;
+  cursor: pointer;
+  border-radius: 6px;
+  font-family: inherit;
+}
+
+.split-results button:hover {
+  background: var(--surface-2);
+}
+
+.split-results .sub {
+  color: var(--text-muted);
+  font-size: 10.5px;
+}
+
+.split-box .check-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.split-box .check-row input[type="checkbox"] {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.split-hops {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.split-hops .layers-seg {
+  margin-left: auto;
+}
+
+.split-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.split-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.split-export {
+  margin-left: auto;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.split-export:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.split-error {
+  font-size: 11.5px;
+  color: #e34948;
+}
+
+/* Actions split du panneau de détails */
+.split-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.split-add-btn {
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.split-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.split-in {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+}

@@ -33,13 +33,22 @@ export async function runSparql(query: string): Promise<SparqlResult> {
   return body as SparqlResult;
 }
 
-export async function sendChat(messages: ChatMessage[]): Promise<ChatReply> {
+export interface ChatContext {
+  /** ids d'ontologies du Workspace à inclure dans le retrieval */
+  ontologies: string[];
+}
+
+export async function sendChat(
+  messages: ChatMessage[],
+  context?: ChatContext
+): Promise<ChatReply> {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     // L'historique envoyé ne garde que role/content (citations = décor local)
     body: JSON.stringify({
       messages: messages.map(({ role, content }) => ({ role, content })),
+      context,
     }),
   });
   const body = await res.json();
@@ -53,13 +62,15 @@ export async function sendChat(messages: ChatMessage[]): Promise<ChatReply> {
  */
 export async function streamChat(
   messages: ChatMessage[],
-  onEvent: (ev: Record<string, unknown>) => void
+  onEvent: (ev: Record<string, unknown>) => void,
+  context?: ChatContext
 ): Promise<ChatReply> {
   const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       messages: messages.map(({ role, content }) => ({ role, content })),
+      context,
     }),
   });
   if (!res.ok || !res.body) throw new Error(`${res.status} ${res.statusText}`);
@@ -147,6 +158,13 @@ export interface WsOntology {
   similarityScore?: number;
 }
 
+/** Scores par facette (matchers indépendants, voir backend/similarity.ts) */
+export interface FacetSummary {
+  lexical: number;
+  structural?: number;
+  semantic?: number;
+}
+
 export interface CompareReport {
   createdAt: number;
   totalClasses: number;
@@ -161,6 +179,7 @@ export interface CompareReport {
     targetIri: string;
     module: string;
     score: number;
+    facets?: FacetSummary;
   }[];
 }
 
@@ -171,6 +190,9 @@ export interface MappingEntry {
   target?: string;
   targetIri?: string;
   confidence?: number;
+  score?: number;
+  facets?: FacetSummary;
+  importance?: number;
 }
 
 export interface MappingReport {
@@ -181,6 +203,7 @@ export interface MappingReport {
   counts: { equivalent: number; subclass: number; related: number; none: number };
   entries: MappingEntry[];
   file: string;
+  sssomFile?: string;
 }
 
 export function listWsOntologies(): Promise<WsOntology[]> {
@@ -230,10 +253,52 @@ export function mapOntology(id: string): Promise<MappingReport> {
   return postJson(`/api/workspace/ontologies/${encodeURIComponent(id)}/map`);
 }
 
+export function fetchWsGraph(
+  id: string,
+  version: "original" | "mapped"
+): Promise<BuiltGraph> {
+  return getJson<BuiltGraph>(
+    `/api/workspace/ontologies/${encodeURIComponent(id)}/graph?version=${version}`
+  );
+}
+
 export function mappedTtlUrl(id: string): string {
   return `/api/workspace/ontologies/${encodeURIComponent(id)}/mapped.ttl`;
 }
 
+export function sssomTsvUrl(id: string): string {
+  return `/api/workspace/ontologies/${encodeURIComponent(id)}/mappings.sssom.tsv`;
+}
+
 export function fileUrl(name: string): string {
   return `/api/files/${encodeURIComponent(name)}`;
+}
+
+/* ---- Split structurel : export d'un sous-ensemble en Turtle ---- */
+
+export interface SplitExportRequest {
+  name: string;
+  seeds: string[];
+  subclasses: boolean;
+  superclasses: boolean;
+  hops: number;
+  includeExternal: boolean;
+}
+
+export async function exportSplit(req: SplitExportRequest): Promise<Blob> {
+  const res = await fetch("/api/split/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    let msg = `${res.status} ${res.statusText}`;
+    try {
+      msg = ((await res.json()) as { error?: string })?.error ?? msg;
+    } catch {
+      /* corps non-JSON */
+    }
+    throw new Error(msg);
+  }
+  return res.blob();
 }

@@ -1,18 +1,31 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { fetchMeta } from "./api";
 import { onGraphFocus } from "./bus";
 import { setPrefixes } from "./curie";
 import type { Meta } from "./types";
-import GraphTab from "./tabs/GraphTab";
-import SparqlTab from "./tabs/SparqlTab";
-import ChatTab from "./tabs/ChatTab";
-import WorkspaceTab from "./tabs/WorkspaceTab";
 
-type Tab = "graph" | "sparql" | "chat" | "workspace";
+// Chaque onglet est une « page » : sa propre URL (#/graph, #/chat…) et son
+// propre bundle JS chargé à la demande — three.js et force-graph ne sont
+// téléchargés que si l'on visite Graph.
+const GraphTab = lazy(() => import("./tabs/GraphTab"));
+const ChatTab = lazy(() => import("./tabs/ChatTab"));
+const WorkspaceTab = lazy(() => import("./tabs/WorkspaceTab"));
+
+type Tab = "graph" | "chat" | "workspace";
+
+const TAB_IDS: Tab[] = ["graph", "chat", "workspace"];
+
+function tabFromHash(): Tab {
+  const h = window.location.hash.replace(/^#\/?/, "");
+  return (TAB_IDS as string[]).includes(h) ? (h as Tab) : "graph";
+}
+
+function navigate(tab: Tab): void {
+  window.location.hash = `/${tab}`;
+}
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "graph", label: "Graph" },
-  { id: "sparql", label: "SPARQL" },
   { id: "chat", label: "ChatBot" },
   { id: "workspace", label: "Workspace" },
 ];
@@ -28,12 +41,20 @@ function useDarkMode(): [boolean, () => void] {
 }
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("graph");
+  const [tab, setTab] = useState<Tab>(tabFromHash);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dark, toggleDark] = useDarkMode();
 
-  useEffect(() => onGraphFocus(() => setTab("graph")), []);
+  // L'URL est la source de vérité : navigation avant/arrière du navigateur
+  // comprise, et chaque onglet est adressable directement.
+  useEffect(() => {
+    const onHash = () => setTab(tabFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  useEffect(() => onGraphFocus(() => navigate("graph")), []);
 
   useEffect(() => {
     fetchMeta()
@@ -62,10 +83,13 @@ export default function App() {
     // graphe téléchargé) est conservé au niveau module dans chaque onglet.
     return (
       <div className="tab-panel">
-        {tab === "graph" && <GraphTab meta={meta} dark={dark} />}
-        {tab === "sparql" && <SparqlTab meta={meta} dark={dark} />}
-        {tab === "chat" && <ChatTab />}
-        {tab === "workspace" && <WorkspaceTab />}
+        <Suspense
+          fallback={<div className="empty-hint">Loading this page…</div>}
+        >
+          {tab === "graph" && <GraphTab meta={meta} dark={dark} />}
+          {tab === "chat" && <ChatTab />}
+          {tab === "workspace" && <WorkspaceTab />}
+        </Suspense>
       </div>
     );
   }, [error, meta, tab, dark]);
@@ -82,7 +106,7 @@ export default function App() {
             <button
               key={t.id}
               className={`tab-btn ${tab === t.id ? "active" : ""}`}
-              onClick={() => setTab(t.id)}
+              onClick={() => navigate(t.id)}
             >
               {t.label}
             </button>

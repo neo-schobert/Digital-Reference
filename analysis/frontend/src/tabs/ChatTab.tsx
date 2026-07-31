@@ -4,11 +4,13 @@ import {
   deleteChat,
   fetchMeta,
   listChats,
+  listWsOntologies,
   loadChat,
   saveChat,
   sendChat,
   streamChat,
   type ChatSummary,
+  type WsOntology,
 } from "../api";
 import type { ChatMessage, ChatTrace } from "../types";
 import ChatPipeline from "../components/ChatPipeline";
@@ -135,6 +137,7 @@ function fmtDate(ts: number): string {
 // monté à la fois pour économiser la mémoire).
 let savedMessages: ChatMessage[] = [];
 let savedChatId: string | null = null;
+let savedCtx: Set<string> = new Set();
 
 export default function ChatTab() {
   const [messages, setMessages] = useState<ChatMessage[]>(savedMessages);
@@ -148,6 +151,27 @@ export default function ChatTab() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [prefixes, setPrefixes] = useState<Record<string, string> | null>(null);
+  const [wsOntos, setWsOntos] = useState<WsOntology[]>([]);
+  const [ctxSel, setCtxSel] = useState<Set<string>>(savedCtx);
+
+  useEffect(() => {
+    savedCtx = ctxSel;
+  }, [ctxSel]);
+
+  useEffect(() => {
+    listWsOntologies()
+      .then((list) => {
+        const mapped = list.filter((o) => o.hasMapping);
+        setWsOntos(mapped);
+        // purge des ontologies supprimées entre-temps
+        setCtxSel((prev) => {
+          const ids = new Set(mapped.map((o) => o.id));
+          const next = new Set([...prev].filter((id) => ids.has(id)));
+          return next.size === prev.size ? prev : next;
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     savedMessages = messages;
@@ -300,13 +324,15 @@ export default function ChatTab() {
       setLiveTrace(traceRef.current);
       setLiveStage("embed");
       try {
+        const context =
+          ctxSel.size > 0 ? { ontologies: [...ctxSel] } : undefined;
         let r;
         try {
-          r = await streamChat(next, onEvent);
+          r = await streamChat(next, onEvent, context);
         } catch (streamErr) {
           // Backend plus ancien sans /api/chat/stream : bascule non-streamée
           console.warn("stream failed, falling back to plain chat", streamErr);
-          r = await sendChat(next);
+          r = await sendChat(next, context);
         }
         const done: ChatMessage[] = [
           ...next,
@@ -340,7 +366,7 @@ export default function ChatTab() {
         inputRef.current?.focus();
       }
     },
-    [messages, waiting, onEvent, chatId, persist]
+    [messages, waiting, onEvent, chatId, persist, ctxSel]
   );
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -482,6 +508,43 @@ export default function ChatTab() {
             </>
           )}
         </div>
+
+        {wsOntos.length > 0 && (
+          <div className="ctx-bar" title="Ontologies included in the answer context">
+            <span className="ctx-label">
+              Context{ctxSel.size > 0 && ` (+${ctxSel.size})`}
+            </span>
+            <div className="ctx-chips">
+            <span className="ctx-chip fixed">Digital Reference</span>
+            {wsOntos.map((o) => {
+              const short = o.name.replace(/\.[^.]+$/, "");
+              const on = ctxSel.has(o.id);
+              return (
+                <button
+                  key={o.id}
+                  className={`ctx-chip${on ? " on" : ""}`}
+                  title={
+                    on
+                      ? "Remove this linked ontology from the chat context"
+                      : "Answers will also use this linked ontology (with its DR links)"
+                  }
+                  onClick={() =>
+                    setCtxSel((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(o.id)) next.delete(o.id);
+                      else next.add(o.id);
+                      return next;
+                    })
+                  }
+                >
+                  {on ? "✓ " : "+ "}
+                  {short}
+                </button>
+              );
+            })}
+            </div>
+          </div>
+        )}
 
         <div className="chat-input-row">
           <textarea

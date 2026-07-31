@@ -8,6 +8,7 @@ import {
   saveChat,
 } from "./chatstore.js";
 import {
+  contextIndex,
   compareToDr,
   deleteOntology,
   getResult,
@@ -15,6 +16,8 @@ import {
   listOntologies,
   mapToDr,
   mappedFilePath,
+  ontologyGraph,
+  sssomFilePath,
 } from "./workspace.js";
 import cors from "cors";
 import {
@@ -25,6 +28,7 @@ import {
   listFiles,
   runSparql,
 } from "./ontology.js";
+import { buildSplit } from "./split.js";
 
 const PORT = Number(process.env.DR_BACKEND_PORT ?? 3178);
 
@@ -84,10 +88,18 @@ app.post("/api/sparql", (req, res) => {
 });
 
 /* --- Chatbot GraphRAG (retrieval hybride + SPARQL via OpenRouter) --- */
+const chatContextOf = async (body: unknown) => {
+  const ids = (body as { context?: { ontologies?: unknown } })?.context?.ontologies;
+  return Array.isArray(ids)
+    ? contextIndex(ids.filter((x): x is string => typeof x === "string"))
+    : null;
+};
+
 app.post("/api/chat", async (req, res) => {
   const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
   try {
-    res.json(await answerChat(messages));
+    const extra = await chatContextOf(req.body);
+    res.json(await answerChat(messages, undefined, extra));
   } catch (e) {
     res.status(502).json({ error: e instanceof Error ? e.message : String(e) });
   }
@@ -104,7 +116,8 @@ app.post("/api/chat/stream", async (req, res) => {
     res.write(JSON.stringify(ev) + "\n");
   };
   try {
-    const out = await answerChat(messages, emit);
+    const extra = await chatContextOf(req.body);
+    const out = await answerChat(messages, emit, extra);
     emit({ type: "answer", ...out });
   } catch (e) {
     emit({ type: "error", error: e instanceof Error ? e.message : String(e) });
@@ -193,6 +206,15 @@ app.post("/api/workspace/ontologies/:id/map", async (req, res) => {
   }
 });
 
+app.get("/api/workspace/ontologies/:id/graph", (req, res) => {
+  const version = req.query.version === "mapped" ? "mapped" : "original";
+  try {
+    res.json(ontologyGraph(req.params.id, version));
+  } catch (e) {
+    res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
 app.get("/api/workspace/ontologies/:id/mapped.ttl", (req, res) => {
   const path = mappedFilePath(req.params.id);
   if (!path) {
@@ -200,6 +222,26 @@ app.get("/api/workspace/ontologies/:id/mapped.ttl", (req, res) => {
     return;
   }
   res.type("text/turtle").download(path, "mapped-to-dr.ttl");
+});
+
+app.get("/api/workspace/ontologies/:id/mappings.sssom.tsv", (req, res) => {
+  const path = sssomFilePath(req.params.id);
+  if (!path) {
+    res.status(404).json({ error: "No mapping generated yet" });
+    return;
+  }
+  res.type("text/tab-separated-values").download(path, "mappings.sssom.tsv");
+});
+
+/* --- Split structurel : export Turtle autonome d'un sous-ensemble ---- */
+app.post("/api/split/export", (req, res) => {
+  try {
+    const { filename, ttl } = buildSplit(req.body ?? {});
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.type("text/turtle").send(ttl);
+  } catch (e) {
+    res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+  }
 });
 
 /* --- Démarrage ------------------------------------------------------- */

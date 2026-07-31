@@ -562,7 +562,7 @@ export function chatStub(message: string): string {
     }
     lines.push("");
     lines.push(
-      "You can explore these concepts in the **Graph** tab or query them via the **SPARQL** tab."
+      "You can explore these concepts in the **Graph** tab."
     );
   } else {
     lines.push("");

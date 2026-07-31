@@ -7,6 +7,8 @@ export interface GraphNode {
   lobes: string[];
   comment?: string;
   external: boolean;
+  /** Nom court de l'ontologie importée quand le nœud vient du Workspace */
+  source?: string;
   degree: number;
   attributes: { iri: string; label: string; range?: string }[];
 }
@@ -17,6 +19,8 @@ export interface GraphLink {
   type: "subclass" | "property";
   label?: string;
   iri?: string;
+  /** true = axiome de liaison d'une ontologie importée vers le DR */
+  mapping?: boolean;
 }
 
 export interface BuiltGraph {
