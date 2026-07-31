@@ -273,3 +273,32 @@ export function sssomTsvUrl(id: string): string {
 export function fileUrl(name: string): string {
   return `/api/files/${encodeURIComponent(name)}`;
 }
+
+/* ---- Split structurel : export d'un sous-ensemble en Turtle ---- */
+
+export interface SplitExportRequest {
+  name: string;
+  seeds: string[];
+  subclasses: boolean;
+  superclasses: boolean;
+  hops: number;
+  includeExternal: boolean;
+}
+
+export async function exportSplit(req: SplitExportRequest): Promise<Blob> {
+  const res = await fetch("/api/split/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    let msg = `${res.status} ${res.statusText}`;
+    try {
+      msg = ((await res.json()) as { error?: string })?.error ?? msg;
+    } catch {
+      /* corps non-JSON */
+    }
+    throw new Error(msg);
+  }
+  return res.blob();
+}

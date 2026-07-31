@@ -28,6 +28,7 @@ import {
   listFiles,
   runSparql,
 } from "./ontology.js";
+import { buildSplit } from "./split.js";
 
 const PORT = Number(process.env.DR_BACKEND_PORT ?? 3178);
 
@@ -230,6 +231,17 @@ app.get("/api/workspace/ontologies/:id/mappings.sssom.tsv", (req, res) => {
     return;
   }
   res.type("text/tab-separated-values").download(path, "mappings.sssom.tsv");
+});
+
+/* --- Split structurel : export Turtle autonome d'un sous-ensemble ---- */
+app.post("/api/split/export", (req, res) => {
+  try {
+    const { filename, ttl } = buildSplit(req.body ?? {});
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.type("text/turtle").send(ttl);
+  } catch (e) {
+    res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+  }
 });
 
 /* --- Démarrage ------------------------------------------------------- */

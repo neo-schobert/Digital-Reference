@@ -16,8 +16,31 @@ type OverlayVersion = "original" | "mapped";
 let savedOverlays: Record<string, OverlayVersion> = {};
 let savedShowDr = true;
 let savedLayersOpen = true;
+
+// Brouillon du mode Split (export structurel) : conservé entre montages.
+interface SplitDraft {
+  open: boolean;
+  collapsed: boolean;
+  name: string;
+  seeds: string[];
+  subclasses: boolean;
+  superclasses: boolean;
+  hops: number;
+  includeExternal: boolean;
+}
+let savedSplit: SplitDraft = {
+  open: false,
+  collapsed: false,
+  name: "",
+  seeds: [],
+  subclasses: true,
+  superclasses: true,
+  hops: 0,
+  includeExternal: false,
+};
 const overlayGraphCache = new Map<string, BuiltGraph>();
 import {
+  exportSplit,
   fetchGraph,
   fetchWsGraph,
   fileUrl,
@@ -76,6 +99,15 @@ export default function GraphTab({ meta, dark }: Props) {
   useEffect(() => {
     savedLayersOpen = layersOpen;
   }, [layersOpen]);
+
+  /* ---- Mode Split : brouillon persistant au niveau module ---- */
+  const [split, setSplit] = useState<SplitDraft>(savedSplit);
+  useEffect(() => {
+    savedSplit = split;
+  }, [split]);
+  const [splitSearch, setSplitSearch] = useState("");
+  const [splitBusy, setSplitBusy] = useState(false);
+  const [splitError, setSplitError] = useState<string | null>(null);
   const [overlayGraphs, setOverlayGraphs] = useState<Record<string, BuiltGraph>>(
     {}
   );
@@ -314,6 +346,139 @@ export default function GraphTab({ meta, dark }: Props) {
   const toggleFocusSource = useCallback((src: string) => {
     setFocusSource((cur) => (cur === src ? null : src));
   }, []);
+
+  /* ---- Mode Split : sous-ensemble structurel exportable ----
+     Mêmes règles d'expansion que buildSplit côté backend (split.ts) :
+     l'aperçu estompé correspond exactement au fichier exporté.
+     Ordre : graines → descendants → N sauts de propriétés → ancêtres. */
+  const splitAdj = useMemo(() => {
+    const parents = new Map<string, string[]>();
+    const children = new Map<string, string[]>();
+    const propNb = new Map<string, string[]>();
+    const add = (m: Map<string, string[]>, k: string, v: string) => {
+      const arr = m.get(k);
+      if (arr) arr.push(v);
+      else m.set(k, [v]);
+    };
+    for (const l of fullGraph.links) {
+      if (l.type === "subclass") {
+        add(parents, l.source, l.target);
+        add(children, l.target, l.source);
+      } else {
+        add(propNb, l.source, l.target);
+        add(propNb, l.target, l.source);
+      }
+    }
+    return { parents, children, propNb };
+  }, [fullGraph]);
+
+  const splitMembers = useMemo(() => {
+    if (!split.open || split.seeds.length === 0) return null;
+    const byId = new Map(fullGraph.nodes.map((n) => [n.id, n]));
+    const allowed = (id: string) => {
+      const n = byId.get(id);
+      return n !== undefined && (split.includeExternal || !n.external);
+    };
+    const members = new Set(split.seeds.filter((id) => byId.has(id)));
+    const grow = (adj: Map<string, string[]>) => {
+      const stack = [...members];
+      while (stack.length > 0) {
+        const cur = stack.pop()!;
+        for (const nb of adj.get(cur) ?? []) {
+          if (!members.has(nb) && allowed(nb)) {
+            members.add(nb);
+            stack.push(nb);
+          }
+        }
+      }
+    };
+    if (split.subclasses) grow(splitAdj.children);
+    for (let h = 0; h < split.hops; h++) {
+      const frontier: string[] = [];
+      for (const id of members) {
+        for (const nb of splitAdj.propNb.get(id) ?? []) {
+          if (!members.has(nb) && allowed(nb)) frontier.push(nb);
+        }
+      }
+      for (const id of frontier) members.add(id);
+    }
+    if (split.superclasses) grow(splitAdj.parents);
+    return members;
+  }, [split, fullGraph, splitAdj]);
+
+  const splitLinkCount = useMemo(() => {
+    if (!splitMembers) return 0;
+    let count = 0;
+    for (const l of fullGraph.links) {
+      if (splitMembers.has(l.source) && splitMembers.has(l.target)) count++;
+    }
+    return count;
+  }, [splitMembers, fullGraph]);
+
+  // L'aperçu du split prime sur le focus de couche (tout le reste s'estompe).
+  const effectiveHighlight = splitMembers ?? highlightIds;
+
+  const toggleSeed = useCallback((id: string) => {
+    setSplit((s) => ({
+      ...s,
+      seeds: s.seeds.includes(id)
+        ? s.seeds.filter((x) => x !== id)
+        : [...s.seeds, id],
+    }));
+  }, []);
+
+  const openSplitWith = useCallback((id?: string) => {
+    setSplit((s) => ({
+      ...s,
+      open: true,
+      collapsed: false,
+      seeds: id && !s.seeds.includes(id) ? [...s.seeds, id] : s.seeds,
+    }));
+  }, []);
+
+  const splitSearchResults = useMemo(() => {
+    const q = splitSearch.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return fullGraph.nodes
+      .filter(
+        (n) =>
+          !split.seeds.includes(n.id) &&
+          (n.label.toLowerCase().includes(q) || n.id.toLowerCase().includes(q))
+      )
+      .sort((a, b) => b.degree - a.degree)
+      .slice(0, 8);
+  }, [splitSearch, fullGraph, split.seeds]);
+
+  const doExportSplit = useCallback(async () => {
+    if (split.seeds.length === 0) return;
+    setSplitBusy(true);
+    setSplitError(null);
+    try {
+      const blob = await exportSplit({
+        name: split.name,
+        seeds: split.seeds,
+        subclasses: split.subclasses,
+        superclasses: split.superclasses,
+        hops: split.hops,
+        includeExternal: split.includeExternal,
+      });
+      const slug =
+        split.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "") || "dr-split";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${slug}.ttl`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setSplitError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSplitBusy(false);
+    }
+  }, [split]);
 
   /* ---- Révélation progressive : le canvas reçoit les nœuds par lots ----
      Le premier lot (les plus connectés = le squelette) s'affiche
@@ -726,7 +891,7 @@ export default function GraphTab({ meta, dark }: Props) {
             onSelectLink={setSelectedLinkKey}
             visibleNodeIds={visibleNodeIds}
             visibleLinkKeys={visibleLinkKeys}
-            highlightIds={highlightIds}
+            highlightIds={effectiveHighlight}
           />
         ) : (
           <NetworkCanvas
@@ -741,7 +906,7 @@ export default function GraphTab({ meta, dark }: Props) {
             onSelectLink={setSelectedLinkKey}
             visibleNodeIds={visibleNodeIds}
             visibleLinkKeys={visibleLinkKeys}
-            highlightIds={highlightIds}
+            highlightIds={effectiveHighlight}
           />
         )}
         <div className="layers-box" title="Choose which ontologies are shown">
@@ -859,6 +1024,168 @@ export default function GraphTab({ meta, dark }: Props) {
           </div>
           )}
         </div>
+        {!split.open && (
+          <button
+            className="split-launch"
+            title="Extract a subset of the ontology as a standalone Turtle file"
+            onClick={() => openSplitWith()}
+          >
+            ✂ Split
+          </button>
+        )}
+        {split.open && (
+          <div className="split-box">
+            <div className="split-head">
+              <button
+                className="layers-title layers-toggle"
+                onClick={() => setSplit((s) => ({ ...s, collapsed: !s.collapsed }))}
+                title={split.collapsed ? "Expand" : "Collapse"}
+              >
+                {split.collapsed ? "▸" : "▾"} ✂ Split
+                {splitMembers && ` · ${splitMembers.size} classes`}
+              </button>
+              <button
+                className="split-close"
+                title="Exit split mode (the draft is kept)"
+                onClick={() => setSplit((s) => ({ ...s, open: false }))}
+              >
+                ✕
+              </button>
+            </div>
+            {!split.collapsed && (
+              <div className="split-body">
+                <input
+                  className="layers-filter"
+                  placeholder="Split name (file name)…"
+                  value={split.name}
+                  onChange={(e) =>
+                    setSplit((s) => ({ ...s, name: e.target.value }))
+                  }
+                />
+                <div className="split-section">Seed classes</div>
+                {split.seeds.length === 0 && (
+                  <div className="split-hint">
+                    Select a class in the graph and use “＋ Add to split”, or
+                    search below. Everything staying lit will be exported.
+                  </div>
+                )}
+                {split.seeds.length > 0 && (
+                  <div className="split-chips">
+                    {split.seeds.map((id) => (
+                      <span key={id} className="split-chip" title={id}>
+                        {nodeById.get(id)?.label ?? id}
+                        <button
+                          onClick={() => toggleSeed(id)}
+                          title="Remove this seed"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <input
+                  className="layers-filter"
+                  placeholder="Add a class…"
+                  value={splitSearch}
+                  onChange={(e) => setSplitSearch(e.target.value)}
+                />
+                {splitSearchResults.length > 0 && (
+                  <div className="split-results">
+                    {splitSearchResults.map((n) => (
+                      <button
+                        key={n.id}
+                        title={n.id}
+                        onClick={() => {
+                          toggleSeed(n.id);
+                          setSplitSearch("");
+                        }}
+                      >
+                        ＋ {n.label} <span className="sub">{n.module}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="split-section">Expansion</div>
+                <label
+                  className="check-row"
+                  title="Include the whole subClassOf descent of the seeds"
+                >
+                  <input
+                    type="checkbox"
+                    checked={split.subclasses}
+                    onChange={(e) =>
+                      setSplit((s) => ({ ...s, subclasses: e.target.checked }))
+                    }
+                  />
+                  Subclasses (descendants)
+                </label>
+                <label
+                  className="check-row"
+                  title="Include the parent chain up to the root (keeps the module understandable)"
+                >
+                  <input
+                    type="checkbox"
+                    checked={split.superclasses}
+                    onChange={(e) =>
+                      setSplit((s) => ({ ...s, superclasses: e.target.checked }))
+                    }
+                  />
+                  Superclasses (context)
+                </label>
+                <div
+                  className="split-hops"
+                  title="Also include classes reachable through object properties"
+                >
+                  <span>Via properties</span>
+                  <span className="layers-seg">
+                    {[0, 1, 2].map((h) => (
+                      <button
+                        key={h}
+                        className={split.hops === h ? "active" : ""}
+                        onClick={() => setSplit((s) => ({ ...s, hops: h }))}
+                      >
+                        {h === 0 ? "off" : `${h} hop${h > 1 ? "s" : ""}`}
+                      </button>
+                    ))}
+                  </span>
+                </div>
+                <label
+                  className="check-row"
+                  title="Allow external classes (SOSA, Schema.org…) in the expansion"
+                >
+                  <input
+                    type="checkbox"
+                    checked={split.includeExternal}
+                    onChange={(e) =>
+                      setSplit((s) => ({
+                        ...s,
+                        includeExternal: e.target.checked,
+                      }))
+                    }
+                  />
+                  Include external classes
+                </label>
+                <div className="split-footer">
+                  <span className="split-count">
+                    {splitMembers
+                      ? `${splitMembers.size.toLocaleString("en-US")} classes · ${splitLinkCount.toLocaleString("en-US")} links`
+                      : "no seeds yet"}
+                  </span>
+                  <button
+                    className="split-export"
+                    disabled={splitBusy || split.seeds.length === 0}
+                    title="Download the subset as a standalone .ttl (works offline, re-importable in the Workspace)"
+                    onClick={() => void doExportSplit()}
+                  >
+                    {splitBusy ? "Exporting…" : "⬇ Export .ttl"}
+                  </button>
+                </div>
+                {splitError && <div className="split-error">⚠️ {splitError}</div>}
+              </div>
+            )}
+          </div>
+        )}
         <div className="view-switch" role="tablist" aria-label="View mode">
           <button
             role="tab"
@@ -982,6 +1309,38 @@ export default function GraphTab({ meta, dark }: Props) {
                 </span>
               ))}
             </div>
+            {!selectedNode.source && (
+              <div className="split-actions">
+                {split.open ? (
+                  <button
+                    className="split-add-btn"
+                    onClick={() => toggleSeed(selectedNode.id)}
+                  >
+                    {split.seeds.includes(selectedNode.id)
+                      ? "− Remove from split"
+                      : "＋ Add to split"}
+                  </button>
+                ) : (
+                  <button
+                    className="split-add-btn"
+                    title="Start a structural split (standalone .ttl export) from this class"
+                    onClick={() => openSplitWith(selectedNode.id)}
+                  >
+                    ✂ Split from this class
+                  </button>
+                )}
+                {split.open &&
+                  splitMembers?.has(selectedNode.id) &&
+                  !split.seeds.includes(selectedNode.id) && (
+                    <span
+                      className="split-in"
+                      title="Included via the expansion rules"
+                    >
+                      in split ✓
+                    </span>
+                  )}
+              </div>
+            )}
             {selectedNode.comment && <p className="comment">{selectedNode.comment}</p>}
 
             {selectedNode.attributes.length > 0 && (
