@@ -33,13 +33,22 @@ export async function runSparql(query: string): Promise<SparqlResult> {
   return body as SparqlResult;
 }
 
-export async function sendChat(messages: ChatMessage[]): Promise<ChatReply> {
+export interface ChatContext {
+  /** ids d'ontologies du Workspace à inclure dans le retrieval */
+  ontologies: string[];
+}
+
+export async function sendChat(
+  messages: ChatMessage[],
+  context?: ChatContext
+): Promise<ChatReply> {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     // L'historique envoyé ne garde que role/content (citations = décor local)
     body: JSON.stringify({
       messages: messages.map(({ role, content }) => ({ role, content })),
+      context,
     }),
   });
   const body = await res.json();
@@ -53,13 +62,15 @@ export async function sendChat(messages: ChatMessage[]): Promise<ChatReply> {
  */
 export async function streamChat(
   messages: ChatMessage[],
-  onEvent: (ev: Record<string, unknown>) => void
+  onEvent: (ev: Record<string, unknown>) => void,
+  context?: ChatContext
 ): Promise<ChatReply> {
   const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       messages: messages.map(({ role, content }) => ({ role, content })),
+      context,
     }),
   });
   if (!res.ok || !res.body) throw new Error(`${res.status} ${res.statusText}`);
@@ -228,6 +239,15 @@ export function compareOntology(id: string): Promise<CompareReport> {
 
 export function mapOntology(id: string): Promise<MappingReport> {
   return postJson(`/api/workspace/ontologies/${encodeURIComponent(id)}/map`);
+}
+
+export function fetchWsGraph(
+  id: string,
+  version: "original" | "mapped"
+): Promise<BuiltGraph> {
+  return getJson<BuiltGraph>(
+    `/api/workspace/ontologies/${encodeURIComponent(id)}/graph?version=${version}`
+  );
 }
 
 export function mappedTtlUrl(id: string): string {

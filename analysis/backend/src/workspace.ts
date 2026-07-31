@@ -4,11 +4,13 @@ import oxigraph from "oxigraph";
 import { db, DATA_DIR } from "./chatstore.js";
 import {
   Card,
+  ExtraIndex,
   chatConfig,
   cosine,
   drIndex,
   embedTexts,
   llmCall,
+  tokenize,
 } from "./chat.js";
 
 /* ------------------------------------------------------------------ */
@@ -233,6 +235,10 @@ export function deleteOntology(id: string): boolean {
   }
   db.prepare(`DELETE FROM ws_results WHERE onto_id = ?`).run(id);
   db.prepare(`DELETE FROM ws_ontologies WHERE id = ?`).run(id);
+  wsGraphCache.delete(`${id}:original`);
+  wsGraphCache.delete(`${id}:mapped`);
+  wsEmbCache.delete(id);
+  wsClassCache.delete(id);
   return true;
 }
 
@@ -284,6 +290,238 @@ function turtleBase(content: string, ext: string, store: InstanceType<typeof oxi
   }
 }
 
+/* ------------- Graphe d'une ontologie importée (onglet Graph) ------ */
+/* Même forme que le graphe du DR ; en version « mapped », les axiomes de
+   liaison deviennent des arêtes vers les IRIs du DR (le frontend fusionne
+   les deux graphes, les liens retrouvent donc leurs cibles).             */
+
+const DR_PREFIX = "http://www.w3id.org/ecsel-dr";
+
+export interface WsGraph {
+  nodes: {
+    id: string;
+    label: string;
+    module: string;
+    lobes: string[];
+    comment?: string;
+    external: boolean;
+    degree: number;
+    attributes: never[];
+    /** nom court de l'ontologie importée (couleur + filtre côté frontend) */
+    source: string;
+  }[];
+  links: {
+    source: string;
+    target: string;
+    type: "subclass" | "property";
+    label?: string;
+    iri?: string;
+    /** true = axiome de liaison vers le DR (visible en mode « linked » seulement) */
+    mapping?: boolean;
+  }[];
+}
+
+// Caches mémoire : le parsing TTL et les embeddings d'une ontologie importée
+// ne changent qu'à la ré-importation (nouvel id) ou après un mapping.
+const wsGraphCache = new Map<string, WsGraph>();
+const wsEmbCache = new Map<string, number[][]>();
+const wsClassCache = new Map<string, WsClass[]>();
+
+export function ontologyGraph(id: string, version: "original" | "mapped"): WsGraph {
+  const cacheKey = `${id}:${version}`;
+  const cached = wsGraphCache.get(cacheKey);
+  if (cached) return cached;
+  const row = db
+    .prepare(`SELECT name, filename FROM ws_ontologies WHERE id = ?`)
+    .get(id) as { name: string; filename: string } | undefined;
+  if (!row) throw new Error("Unknown ontology");
+  let content: string;
+  let ext: string;
+  if (version === "mapped") {
+    const path = mappedFilePath(id);
+    if (!path) throw new Error("No mapping generated yet — run Map to DR first");
+    content = readFileSync(path, "utf8");
+    ext = "ttl";
+  } else {
+    content = readFileSync(join(WS_DIR, row.filename), "utf8");
+    ext = (row.filename.split(".").pop() ?? "ttl").toLowerCase();
+  }
+  const store = loadStore(content, ext);
+  const { classes } = parseClasses(store);
+  const classSet = new Set(classes.map((c) => c.iri));
+  const source = row.name.replace(/\.[^.]+$/, "");
+
+  type Term = { termType: string; value: string };
+  type Binding = Map<string, Term>;
+  const q = (sparql: string) =>
+    store.query(
+      `PREFIX owl: <http://www.w3.org/2002/07/owl#>
+       PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+       PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+       ${sparql}`
+    ) as Binding[];
+
+  const links: WsGraph["links"] = [];
+  const seen = new Set<string>();
+  const push = (l: WsGraph["links"][number]) => {
+    const k = `${l.type}|${l.iri ?? l.label ?? ""}|${l.source}|${l.target}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    links.push(l);
+  };
+
+  // Hiérarchie interne + axiomes de subsomption vers le DR (version mappée)
+  for (const b of q(
+    `SELECT ?s ?o WHERE { ?s rdfs:subClassOf ?o . FILTER(isIRI(?s) && isIRI(?o)) }`
+  )) {
+    const s = b.get("s")!.value;
+    const o = b.get("o")!.value;
+    if (!classSet.has(s) || s === o) continue;
+    if (classSet.has(o)) {
+      push({ source: s, target: o, type: "subclass", label: "subClassOf" });
+    } else if (o.startsWith(DR_PREFIX)) {
+      push({
+        source: s,
+        target: o,
+        type: "property",
+        label: "⊑ subClassOf (DR)",
+        iri: "http://www.w3.org/2000/01/rdf-schema#subClassOf",
+        mapping: true,
+      });
+    }
+  }
+  // Axiomes d'équivalence / proximité vers le DR
+  const MAPPING_PREDICATES: [string, string][] = [
+    ["owl:equivalentClass", "≡ equivalentClass (DR)"],
+    ["skos:closeMatch", "≈ closeMatch (DR)"],
+  ];
+  for (const [pred, label] of MAPPING_PREDICATES) {
+    for (const b of q(
+      `SELECT ?s ?o WHERE { ?s ${pred} ?o . FILTER(isIRI(?s) && isIRI(?o)) }`
+    )) {
+      const s = b.get("s")!.value;
+      const o = b.get("o")!.value;
+      if (!classSet.has(s)) continue;
+      if (o.startsWith(DR_PREFIX) || classSet.has(o)) {
+        push({
+          source: s,
+          target: o,
+          type: "property",
+          label,
+          iri:
+            pred === "owl:equivalentClass"
+              ? "http://www.w3.org/2002/07/owl#equivalentClass"
+              : "http://www.w3.org/2004/02/skos/core#closeMatch",
+          mapping: true,
+        });
+      }
+    }
+  }
+  // Propriétés objet internes (domain -> range, sans owl:unionOf : les
+  // ontologies importées simples suffisent pour la visualisation)
+  for (const b of q(
+    `SELECT DISTINCT ?p ?label ?d ?r WHERE {
+       ?p a owl:ObjectProperty . FILTER(isIRI(?p))
+       ?p rdfs:domain ?d . FILTER(isIRI(?d))
+       ?p rdfs:range ?r . FILTER(isIRI(?r))
+       OPTIONAL { ?p rdfs:label ?label }
+     }`
+  )) {
+    const d = b.get("d")!.value;
+    const r = b.get("r")!.value;
+    const iri = b.get("p")!.value;
+    if (!classSet.has(d) || !classSet.has(r)) continue;
+    push({
+      source: d,
+      target: r,
+      type: "property",
+      label: b.get("label")?.value ?? localName(iri),
+      iri,
+    });
+  }
+
+  const degree = new Map<string, number>();
+  for (const l of links) {
+    degree.set(l.source, (degree.get(l.source) ?? 0) + 1);
+    degree.set(l.target, (degree.get(l.target) ?? 0) + 1);
+  }
+  const graph: WsGraph = {
+    nodes: classes.map((c) => ({
+      id: c.iri,
+      label: c.label,
+      module: source,
+      lobes: [],
+      comment: c.comment,
+      external: false,
+      degree: degree.get(c.iri) ?? 0,
+      attributes: [] as never[],
+      source,
+    })),
+    links,
+  };
+  wsGraphCache.set(cacheKey, graph);
+  return graph;
+}
+
+/* ------ Contexte chatbot : fiches des ontologies sélectionnées ------ */
+/* Chaque classe importée devient une fiche (avec son lien DR issu du
+   mapping) + son embedding (réutilisé du compare/map si déjà calculé).   */
+
+const REL_SYMBOL: Record<string, string> = {
+  equivalent: "≡ equivalent to",
+  subclass: "⊑ subclass of",
+  related: "≈ close match of",
+};
+
+export async function contextIndex(ids: string[]): Promise<ExtraIndex | null> {
+  const cards: Card[] = [];
+  const vectors: Float32Array[] = [];
+  // Plafond de sécurité : 16 ontologies × ≤300 classes = ~4800 fiches max,
+  // le scan cosinus reste en millisecondes.
+  for (const id of ids.slice(0, 16)) {
+    const row = db
+      .prepare(`SELECT name FROM ws_ontologies WHERE id = ?`)
+      .get(id) as { name: string } | undefined;
+    if (!row) continue;
+    let classes = wsClassCache.get(id);
+    if (!classes) {
+      classes = loadImported(id).classes;
+      wsClassCache.set(id, classes);
+    }
+    const subset = classes.slice(0, MAX_CLASSES);
+    let embs = wsEmbCache.get(id);
+    if (!embs || embs.length !== subset.length) {
+      embs = await embedTexts(subset.map((c) => c.text));
+      wsEmbCache.set(id, embs);
+    }
+    const mapping = getResult(id, "mapping") as MappingReport | null;
+    const linkOf = new Map(
+      (mapping?.entries ?? [])
+        .filter((e) => e.relation !== "none")
+        .map((e) => [e.sourceIri, e])
+    );
+    const source = row.name.replace(/\.[^.]+$/, "");
+    subset.forEach((c, k) => {
+      const link = linkOf.get(c.iri);
+      const linkText = mapping
+        ? link
+          ? `\nLinked to the Digital Reference: ${REL_SYMBOL[link.relation]} ${link.target} (<${link.targetIri}>)`
+          : "\nNot linked to the Digital Reference (no good match found)."
+        : "";
+      cards.push({
+        iri: c.iri,
+        label: c.label,
+        module: source,
+        kind: "class",
+        text: `[Imported ontology: ${source}]\n${c.text}${linkText}`,
+        tokens: new Set(tokenize(`${c.label} ${c.iri} ${c.comment ?? ""}`)),
+      });
+      vectors.push(Float32Array.from(embs![k]));
+    });
+  }
+  return cards.length > 0 ? { cards, vectors } : null;
+}
+
 /* --------------------- Similarité contre le DR --------------------- */
 
 const MAX_CLASSES = 300;
@@ -296,7 +534,8 @@ interface MatchCandidate {
 }
 
 async function bestDrMatches(
-  classes: WsClass[]
+  classes: WsClass[],
+  cacheKey?: string
 ): Promise<{ perClass: MatchCandidate[][]; truncated: number }> {
   const { cards, vectors } = await drIndex();
   const classIdx: number[] = [];
@@ -306,7 +545,11 @@ async function bestDrMatches(
 
   const truncated = Math.max(0, classes.length - MAX_CLASSES);
   const subset = classes.slice(0, MAX_CLASSES);
-  const embs = await embedTexts(subset.map((c) => c.text));
+  let embs = cacheKey ? wsEmbCache.get(cacheKey) : undefined;
+  if (!embs || embs.length !== subset.length) {
+    embs = await embedTexts(subset.map((c) => c.text));
+    if (cacheKey) wsEmbCache.set(cacheKey, embs);
+  }
 
   const perClass: MatchCandidate[][] = subset.map((wc, k) => {
     const v = Float32Array.from(embs[k]);
@@ -354,7 +597,7 @@ export interface CompareReport {
 
 export async function compareToDr(id: string): Promise<CompareReport> {
   const { classes } = loadImported(id);
-  const { perClass, truncated } = await bestDrMatches(classes);
+  const { perClass, truncated } = await bestDrMatches(classes, id);
   const buckets = { strong: 0, medium: 0, weak: 0 };
   const matches: CompareReport["matches"] = [];
   perClass.forEach((cands, k) => {
@@ -509,7 +752,7 @@ async function verifyBatch(
 
 export async function mapToDr(id: string): Promise<MappingReport> {
   const { classes, content, name, ext, store } = loadImported(id);
-  const { perClass, truncated } = await bestDrMatches(classes);
+  const { perClass, truncated } = await bestDrMatches(classes, id);
   const drCardByIri = new Map((await drIndex()).cards.map((c) => [c.iri, c]));
 
   // Vérification LLM uniquement pour les candidats plausibles (score >= 0.55)
@@ -567,6 +810,7 @@ export async function mapToDr(id: string): Promise<MappingReport> {
     turtleBase(content, ext, store).trimEnd() + "\n" + lines.join("\n") + "\n";
   loadStore(mapped, "ttl"); // validation : le résultat doit se parser
   writeFileSync(join(WS_DIR, `${id}-mapped.ttl`), mapped, "utf8");
+  wsGraphCache.delete(`${id}:mapped`); // le fichier mappé vient de changer
 
   const counts = { equivalent: 0, subclass: 0, related: 0, none: 0 };
   for (const e of entries) counts[e.relation]++;

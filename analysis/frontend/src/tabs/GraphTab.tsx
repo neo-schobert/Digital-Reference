@@ -9,7 +9,21 @@ import {
 // Cache module : le graphe complet n'est téléchargé qu'une fois, même si
 // l'onglet est démonté/remonté (un seul onglet vit à la fois).
 let graphCache: BuiltGraph | null = null;
-import { fetchGraph, fileUrl } from "../api";
+
+// Couches d'ontologies importées (Workspace) affichées dans le graphe :
+// sélection et graphes conservés entre montages de l'onglet.
+type OverlayVersion = "original" | "mapped";
+let savedOverlays: Record<string, OverlayVersion> = {};
+let savedShowDr = true;
+let savedLayersOpen = true;
+const overlayGraphCache = new Map<string, BuiltGraph>();
+import {
+  fetchGraph,
+  fetchWsGraph,
+  fileUrl,
+  listWsOntologies,
+  type WsOntology,
+} from "../api";
 import { toCurie } from "../curie";
 import { buildColorMap, NEUTRAL_DARK, NEUTRAL_LIGHT } from "../palette";
 import type { BuiltGraph, GraphLink, GraphNode, Meta } from "../types";
@@ -48,6 +62,23 @@ export default function GraphTab({ meta, dark }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedLinkKey, setSelectedLinkKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [wsList, setWsList] = useState<WsOntology[]>([]);
+  const [overlays, setOverlays] = useState<Record<string, OverlayVersion>>(
+    savedOverlays
+  );
+  const [showDr, setShowDr] = useState(savedShowDr);
+  const [layersOpen, setLayersOpen] = useState(savedLayersOpen);
+  const [layersFilter, setLayersFilter] = useState("");
+  // Couche « sélectionnée » (clic sur son nom) : tout le reste s'estompe.
+  // "__DR__" = le Digital Reference, sinon le nom court d'une ontologie.
+  const [focusSource, setFocusSource] = useState<string | null>(null);
+
+  useEffect(() => {
+    savedLayersOpen = layersOpen;
+  }, [layersOpen]);
+  const [overlayGraphs, setOverlayGraphs] = useState<Record<string, BuiltGraph>>(
+    {}
+  );
   const canvas2dRef = useRef<NetworkCanvasHandle>(null);
   const canvas3dRef = useRef<NetworkCanvas3DHandle>(null);
 
@@ -56,11 +87,151 @@ export default function GraphTab({ meta, dark }: Props) {
   const [pinsSaved, setPinsSaved] = useState(false);
   useEffect(() => subscribePins(() => setPinCount(totalPinCount())), []);
 
+
+  /* ---- Chargement UNIQUE du graphe complet : ensuite tout le filtrage est
+     local, donc cocher/décocher retire les nœuds en place, sans rechargement */
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    if (graphCache) {
+      setFullGraph(graphCache);
+      setLoading(false);
+      return;
+    }
+    fetchGraph({})
+      .then((g) => {
+        graphCache = g;
+        if (!cancelled) setFullGraph(g);
+      })
+      .catch((e) => console.error(e))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* ---- Couches Workspace : liste + graphes des versions actives ---- */
+  useEffect(() => {
+    savedOverlays = overlays;
+  }, [overlays]);
+  useEffect(() => {
+    savedShowDr = showDr;
+  }, [showDr]);
+
+  useEffect(() => {
+    listWsOntologies()
+      .then((list) => {
+        setWsList(list);
+        // purge des sélections d'ontologies supprimées entre-temps
+        setOverlays((prev) => {
+          const ids = new Set(list.map((o) => o.id));
+          const next = Object.fromEntries(
+            Object.entries(prev).filter(([id]) => ids.has(id))
+          );
+          return Object.keys(next).length === Object.keys(prev).length
+            ? prev
+            : next;
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  // Préchargement de TOUTES les couches (les deux versions) dès que la liste
+  // est connue : activer/désactiver une couche ensuite n'est qu'une bascule
+  // de visibilité dans le canvas — aucun rechargement, aucune reconstruction.
+  useEffect(() => {
+    let cancelled = false;
+    for (const o of wsList) {
+      const versions: OverlayVersion[] = o.hasMapping
+        ? ["original", "mapped"]
+        : ["original"];
+      for (const version of versions) {
+        const key = `${o.id}:${version}`;
+        const cached = overlayGraphCache.get(key);
+        if (cached) {
+          setOverlayGraphs((prev) => (prev[key] ? prev : { ...prev, [key]: cached }));
+          continue;
+        }
+        fetchWsGraph(o.id, version)
+          .then((g) => {
+            overlayGraphCache.set(key, g);
+            if (!cancelled) setOverlayGraphs((prev) => ({ ...prev, [key]: g }));
+          })
+          .catch((e) => console.error(e));
+      }
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [wsList]);
+
+  /* ---- Graphe combiné : superset stable DR + TOUTES les couches ----
+     Il ne change qu'au chargement des données, jamais lors des toggles :
+     les canvas gardent donc leurs objets et leurs positions. ---- */
+  const combined = useMemo(() => {
+    if (wsList.length === 0) return fullGraph;
+    const nodes = [...fullGraph.nodes];
+    const links = [...fullGraph.links];
+    const seenNode = new Set(fullGraph.nodes.map((n) => n.id));
+    const seenLink = new Set(fullGraph.links.map(linkKey));
+    for (const o of wsList) {
+      for (const version of ["original", "mapped"] as const) {
+        const g = overlayGraphs[`${o.id}:${version}`];
+        if (!g) continue;
+        for (const n of g.nodes) {
+          if (!seenNode.has(n.id)) {
+            seenNode.add(n.id);
+            nodes.push(n);
+          }
+        }
+        for (const l of g.links) {
+          const k = linkKey(l);
+          if (!seenLink.has(k)) {
+            seenLink.add(k);
+            links.push(l);
+          }
+        }
+      }
+    }
+    return { nodes, links };
+  }, [fullGraph, wsList, overlayGraphs]);
+
+  // Palette stable : toutes les ontologies importées ont leur couleur,
+  // qu'elles soient affichées ou non.
+  const overlaySources = useMemo(
+    () => wsList.map((o) => o.name.replace(/\.[^.]+$/, "")),
+    [wsList]
+  );
+
+  // Mode d'affichage par nom court (pour la visibilité des nœuds/arêtes)
+  const modeBySource = useMemo(() => {
+    const m = new Map<string, "off" | OverlayVersion>();
+    for (const o of wsList) {
+      m.set(o.name.replace(/\.[^.]+$/, ""), overlays[o.id] ?? "off");
+    }
+    return m;
+  }, [wsList, overlays]);
+
   /* ---- Focus demandé par le chatbot (nœud ou relation mentionnés) ---- */
   useEffect(() => {
     const ensureVisible = (iri: string) => {
-      const n = fullGraph.nodes.find((x) => x.id === iri);
+      const n = combined.nodes.find((x) => x.id === iri);
       if (!n) return;
+      if (n.source) {
+        // Nœud d'une ontologie importée : activer sa couche si besoin
+        const onto = wsList.find(
+          (o) => o.name.replace(/\.[^.]+$/, "") === n.source
+        );
+        if (onto && !overlays[onto.id]) {
+          setOverlays((prev) => ({
+            ...prev,
+            [onto.id]: onto.hasMapping ? "mapped" : "original",
+          }));
+        }
+        return;
+      }
       if (n.degree < minDegree) setMinDegree(0);
       if (groupMode === "lobes") {
         const visible =
@@ -76,7 +247,7 @@ export default function GraphTab({ meta, dark }: Props) {
     };
     const apply = (r: GraphFocusRequest) => {
       consumeGraphFocus();
-      if (fullGraph.nodes.length === 0) {
+      if (combined.nodes.length === 0) {
         stashGraphFocus(r); // ré-appliquée quand le graphe sera chargé
         return;
       }
@@ -87,7 +258,7 @@ export default function GraphTab({ meta, dark }: Props) {
         setSelectedId(r.iri);
         focusIri = r.iri;
       } else {
-        const between = fullGraph.links.filter(
+        const between = combined.links.filter(
           (l) =>
             (l.source === r.from && l.target === r.to) ||
             (l.source === r.to && l.target === r.from)
@@ -127,49 +298,89 @@ export default function GraphTab({ meta, dark }: Props) {
     const pending = consumeGraphFocus();
     if (pending) apply(pending);
     return onGraphFocus(apply);
-  }, [fullGraph, groupMode, selectedLobes, selectedModules, minDegree, showSubclass, showProperties]);
+  }, [combined, wsList, overlays, groupMode, selectedLobes, selectedModules, minDegree, showSubclass, showProperties]);
 
-  /* ---- Chargement UNIQUE du graphe complet : ensuite tout le filtrage est
-     local, donc cocher/décocher retire les nœuds en place, sans rechargement */
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    if (graphCache) {
-      setFullGraph(graphCache);
-      setLoading(false);
-      return;
-    }
-    fetchGraph({})
-      .then((g) => {
-        graphCache = g;
-        if (!cancelled) setFullGraph(g);
-      })
-      .catch((e) => console.error(e))
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const highlightIds = useMemo(() => {
+    if (!focusSource) return null;
+    return new Set(
+      combined.nodes
+        .filter((n) =>
+          focusSource === "__DR__" ? !n.source : n.source === focusSource
+        )
+        .map((n) => n.id)
+    );
+  }, [focusSource, combined]);
+
+  const toggleFocusSource = useCallback((src: string) => {
+    setFocusSource((cur) => (cur === src ? null : src));
   }, []);
 
-  /* ---- Filtrage client-side ---- */
+  /* ---- Révélation progressive : le canvas reçoit les nœuds par lots ----
+     Le premier lot (les plus connectés = le squelette) s'affiche
+     immédiatement, le reste arrive étalé sur les frames : jamais plus de
+     ~170 objets three.js créés d'un coup, quel que soit la taille du graphe. */
+  const orderedNodes = useMemo(() => {
+    const dr = combined.nodes
+      .filter((n) => !n.source)
+      .sort((a, b) => b.degree - a.degree);
+    const imported = combined.nodes.filter((n) => n.source);
+    return [...dr, ...imported];
+  }, [combined]);
+
+  const [revealed, setRevealed] = useState(0);
+  useEffect(() => {
+    const total = orderedNodes.length;
+    setRevealed((r) => Math.min(r, total)); // rétrécit si une couche disparaît
+    if (total === 0) return;
+    const iv = setInterval(() => {
+      setRevealed((r) => {
+        if (r >= total) {
+          clearInterval(iv);
+          return r;
+        }
+        return Math.min(total, r + (r === 0 ? 400 : 320));
+      });
+    }, 70);
+    return () => clearInterval(iv);
+  }, [orderedNodes]);
+
+  const revealedIds = useMemo(
+    () => new Set(orderedNodes.slice(0, revealed).map((n) => n.id)),
+    [orderedNodes, revealed]
+  );
+
+  /* ---- Filtrage client-side (pure visibilité, aucun rechargement) ---- */
   const graph = useMemo(() => {
-    const keepNode = (n: GraphNode) =>
-      groupMode === "lobes"
+    const keepNode = (n: GraphNode) => {
+      // Les nœuds des couches importées suivent leur sélecteur dédié, pas les
+      // filtres lobes/modules/seuil du DR.
+      if (n.source) return (modeBySource.get(n.source) ?? "off") !== "off";
+      if (!showDr) return false;
+      return groupMode === "lobes"
         ? n.lobes.some((l) => selectedLobes.has(l)) ||
-          (selectedLobes.has(NO_LOBE) && n.lobes.length === 0)
+            (selectedLobes.has(NO_LOBE) && n.lobes.length === 0)
         : selectedModules.has(n.module);
-    const nodes = fullGraph.nodes.filter((n) => keepNode(n) && n.degree >= minDegree);
-    const kept = new Set(nodes.map((n) => n.id));
-    const links = fullGraph.links.filter(
-      (l) =>
-        kept.has(l.source) &&
-        kept.has(l.target) &&
-        (l.type === "subclass" ? showSubclass : showProperties)
+    };
+    const nodes = combined.nodes.filter(
+      (n) => keepNode(n) && (n.source ? true : n.degree >= minDegree)
     );
+    const kept = new Set(nodes.map((n) => n.id));
+    const sourceOf = new Map(
+      combined.nodes.filter((n) => n.source).map((n) => [n.id, n.source!])
+    );
+    const links = combined.links.filter((l) => {
+      if (!kept.has(l.source) || !kept.has(l.target)) return false;
+      const src = sourceOf.get(l.source);
+      if (src) {
+        const mode = modeBySource.get(src) ?? "off";
+        if (mode === "off") return false;
+        // Les axiomes de liaison ne se voient qu'en version « linked »
+        if (l.mapping && mode !== "mapped") return false;
+      }
+      return l.type === "subclass" ? showSubclass : showProperties;
+    });
     return { nodes, links };
-  }, [fullGraph, groupMode, selectedLobes, selectedModules, showSubclass, showProperties, minDegree]);
+  }, [combined, modeBySource, groupMode, selectedLobes, selectedModules, showSubclass, showProperties, minDegree, showDr]);
 
   const maxDegree = useMemo(
     () => Math.min(50, fullGraph.nodes.reduce((m, n) => Math.max(m, n.degree), 0)),
@@ -180,8 +391,12 @@ export default function GraphTab({ meta, dark }: Props) {
   const lobeOrder = useMemo(() => meta.lobes.map((l) => l.id), [meta]);
   const moduleOrder = useMemo(() => meta.modules.map((m) => m.id), [meta]);
   const colorMap = useMemo(
-    () => buildColorMap(groupMode === "lobes" ? lobeOrder : moduleOrder, dark),
-    [groupMode, lobeOrder, moduleOrder, dark]
+    () =>
+      buildColorMap(
+        [...(groupMode === "lobes" ? lobeOrder : moduleOrder), ...overlaySources],
+        dark
+      ),
+    [groupMode, lobeOrder, moduleOrder, dark, overlaySources]
   );
   const neutral = dark ? NEUTRAL_DARK : NEUTRAL_LIGHT;
   const colorOf = useCallback(
@@ -192,6 +407,7 @@ export default function GraphTab({ meta, dark }: Props) {
   /* ---- Adaptation nœuds/arêtes -> viz ---- */
   const groupOfNode = useCallback(
     (n: GraphNode) => {
+      if (n.source) return n.source;
       if (groupMode === "modules") return n.module;
       for (const id of lobeOrder) if (n.lobes.includes(id)) return id;
       return NO_LOBE;
@@ -204,16 +420,18 @@ export default function GraphTab({ meta, dark }: Props) {
   // nœuds décochés disparaissent en place).
   const vizNodes = useMemo(
     () =>
-      fullGraph.nodes.map((n) => ({
+      orderedNodes.slice(0, revealed).map((n) => ({
         id: n.id,
         label: n.label,
         group: groupOfNode(n),
         degree: n.degree,
       })),
-    [fullGraph, groupOfNode]
+    [orderedNodes, revealed, groupOfNode]
   );
   const vizLinks = useMemo(() => {
-    const links = fullGraph.links.map((l) => ({
+    const links = combined.links
+      .filter((l) => revealedIds.has(l.source) && revealedIds.has(l.target))
+      .map((l) => ({
       source: l.source,
       target: l.target,
       kind: l.type,
@@ -248,7 +466,7 @@ export default function GraphTab({ meta, dark }: Props) {
       });
     });
     return links;
-  }, [fullGraph]);
+  }, [combined, revealedIds]);
   const visibleNodeIds = useMemo(
     () => new Set(graph.nodes.map((n) => n.id)),
     [graph]
@@ -260,9 +478,9 @@ export default function GraphTab({ meta, dark }: Props) {
 
   const nodeById = useMemo(() => {
     const m = new Map<string, GraphNode>();
-    for (const n of fullGraph.nodes) m.set(n.id, n);
+    for (const n of combined.nodes) m.set(n.id, n);
     return m;
-  }, [fullGraph]);
+  }, [combined]);
 
   const selectedNode = selectedId ? (nodeById.get(selectedId) ?? null) : null;
   const selectedLink = useMemo(
@@ -303,10 +521,17 @@ export default function GraphTab({ meta, dark }: Props) {
       setSelectedLinkKey(null);
       setSelectedId(id);
       setSearch("");
-      setTimeout(() => {
-        if (viewMode === "3d") canvas3dRef.current?.focusNode(id);
-        else canvas2dRef.current?.focusNode(id);
-      }, 50);
+      // Le nœud peut ne pas encore être révélé (chargement progressif) : on
+      // réessaie jusqu'à ce que le vol de caméra ait eu lieu.
+      let tries = 0;
+      const timer = setInterval(() => {
+        tries++;
+        const ok =
+          viewMode === "3d"
+            ? (canvas3dRef.current?.focusNode(id) ?? false)
+            : (canvas2dRef.current?.focusNode(id) ?? false);
+        if (ok || tries > 20) clearInterval(timer);
+      }, 150);
     },
     [viewMode]
   );
@@ -479,6 +704,12 @@ export default function GraphTab({ meta, dark }: Props) {
         <div className="graph-status">
           {graph.nodes.length.toLocaleString("en-US")} classes ·{" "}
           {graph.links.length.toLocaleString("en-US")} links
+          {revealed < orderedNodes.length && (
+            <span className="reveal-progress">
+              {" "}
+              · loading {Math.round((100 * revealed) / orderedNodes.length)}%
+            </span>
+          )}
           {selectedNode ? ` — selected: ${selectedNode.label}` : ""}
           {selectedLink ? ` — edge: ${selectedLink.label ?? selectedLink.type}` : ""}
         </div>
@@ -495,6 +726,7 @@ export default function GraphTab({ meta, dark }: Props) {
             onSelectLink={setSelectedLinkKey}
             visibleNodeIds={visibleNodeIds}
             visibleLinkKeys={visibleLinkKeys}
+            highlightIds={highlightIds}
           />
         ) : (
           <NetworkCanvas
@@ -509,8 +741,124 @@ export default function GraphTab({ meta, dark }: Props) {
             onSelectLink={setSelectedLinkKey}
             visibleNodeIds={visibleNodeIds}
             visibleLinkKeys={visibleLinkKeys}
+            highlightIds={highlightIds}
           />
         )}
+        <div className="layers-box" title="Choose which ontologies are shown">
+          <button
+            className="layers-title layers-toggle"
+            onClick={() => setLayersOpen((v) => !v)}
+            title={layersOpen ? "Collapse" : "Expand"}
+          >
+            {layersOpen ? "▾" : "▸"} Ontologies
+            {wsList.length > 0 && ` (${wsList.length + 1})`}
+            {!layersOpen &&
+              Object.keys(overlays).length > 0 &&
+              ` · ${Object.keys(overlays).length} shown`}
+          </button>
+          {layersOpen && (
+          <div className="layers-body">
+          <div className="layers-row">
+            <input
+              type="checkbox"
+              checked={showDr}
+              onChange={(e) => {
+                setShowDr(e.target.checked);
+                if (!e.target.checked && focusSource === "__DR__")
+                  setFocusSource(null);
+              }}
+            />
+            <span
+              className={`layers-name clickable${focusSource === "__DR__" ? " focused" : ""}`}
+              title="Click to highlight the Digital Reference (dims everything else)"
+              onClick={() => {
+                if (!showDr) setShowDr(true);
+                toggleFocusSource("__DR__");
+              }}
+            >
+              Digital Reference
+            </span>
+          </div>
+          {wsList.length > 6 && (
+            <input
+              className="layers-filter"
+              placeholder="Filter ontologies…"
+              value={layersFilter}
+              onChange={(e) => setLayersFilter(e.target.value)}
+            />
+          )}
+          {wsList
+            .filter(
+              (o) =>
+                !layersFilter ||
+                o.name.toLowerCase().includes(layersFilter.toLowerCase())
+            )
+            .map((o) => {
+            const short = o.name.replace(/\.[^.]+$/, "");
+            // Record<string, V> type l'accès indexé sans undefined : assertion
+            const mode = (overlays[o.id] ?? "off") as OverlayVersion | "off";
+            const setMode = (m: "off" | OverlayVersion) => {
+              setOverlays((prev) => {
+                const next = { ...prev };
+                if (m === "off") delete next[o.id];
+                else next[o.id] = m;
+                return next;
+              });
+              if (m === "off" && focusSource === short) setFocusSource(null);
+            };
+            return (
+              <div className="layers-row" key={o.id}>
+                <span
+                  className="chip"
+                  style={{
+                    background:
+                      mode === "off" ? "var(--surface-3)" : colorOf(short),
+                  }}
+                />
+                <span
+                  className={`layers-name clickable${focusSource === short ? " focused" : ""}`}
+                  title={`${o.name} — click to highlight this ontology (dims everything else)`}
+                  onClick={() => {
+                    if (mode === "off")
+                      setMode(o.hasMapping ? "mapped" : "original");
+                    toggleFocusSource(short);
+                  }}
+                >
+                  {short}
+                </span>
+                <span className="layers-seg">
+                  <button
+                    className={mode === "off" ? "active" : ""}
+                    onClick={() => setMode("off")}
+                  >
+                    off
+                  </button>
+                  <button
+                    className={mode === "original" ? "active" : ""}
+                    title="Show the imported ontology as-is (disconnected from the DR)"
+                    onClick={() => setMode("original")}
+                  >
+                    raw
+                  </button>
+                  <button
+                    className={mode === "mapped" ? "active" : ""}
+                    disabled={!o.hasMapping}
+                    title={
+                      o.hasMapping
+                        ? "Show the DR-linked version (mapping axioms as edges)"
+                        : "Run “Map to DR” in the Workspace tab first"
+                    }
+                    onClick={() => setMode("mapped")}
+                  >
+                    linked
+                  </button>
+                </span>
+              </div>
+            );
+            })}
+          </div>
+          )}
+        </div>
         <div className="view-switch" role="tablist" aria-label="View mode">
           <button
             role="tab"

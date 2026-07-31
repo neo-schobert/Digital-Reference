@@ -8,6 +8,7 @@ import {
   saveChat,
 } from "./chatstore.js";
 import {
+  contextIndex,
   compareToDr,
   deleteOntology,
   getResult,
@@ -15,6 +16,7 @@ import {
   listOntologies,
   mapToDr,
   mappedFilePath,
+  ontologyGraph,
 } from "./workspace.js";
 import cors from "cors";
 import {
@@ -84,10 +86,18 @@ app.post("/api/sparql", (req, res) => {
 });
 
 /* --- Chatbot GraphRAG (retrieval hybride + SPARQL via OpenRouter) --- */
+const chatContextOf = async (body: unknown) => {
+  const ids = (body as { context?: { ontologies?: unknown } })?.context?.ontologies;
+  return Array.isArray(ids)
+    ? contextIndex(ids.filter((x): x is string => typeof x === "string"))
+    : null;
+};
+
 app.post("/api/chat", async (req, res) => {
   const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
   try {
-    res.json(await answerChat(messages));
+    const extra = await chatContextOf(req.body);
+    res.json(await answerChat(messages, undefined, extra));
   } catch (e) {
     res.status(502).json({ error: e instanceof Error ? e.message : String(e) });
   }
@@ -104,7 +114,8 @@ app.post("/api/chat/stream", async (req, res) => {
     res.write(JSON.stringify(ev) + "\n");
   };
   try {
-    const out = await answerChat(messages, emit);
+    const extra = await chatContextOf(req.body);
+    const out = await answerChat(messages, emit, extra);
     emit({ type: "answer", ...out });
   } catch (e) {
     emit({ type: "error", error: e instanceof Error ? e.message : String(e) });
@@ -190,6 +201,15 @@ app.post("/api/workspace/ontologies/:id/map", async (req, res) => {
     res.json(await mapToDr(req.params.id));
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+app.get("/api/workspace/ontologies/:id/graph", (req, res) => {
+  const version = req.query.version === "mapped" ? "mapped" : "original";
+  try {
+    res.json(ontologyGraph(req.params.id, version));
+  } catch (e) {
+    res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
   }
 });
 

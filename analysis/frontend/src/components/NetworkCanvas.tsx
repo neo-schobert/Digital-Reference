@@ -51,6 +51,9 @@ interface Props {
       et les nœuds masqués disparaissent en place. null/undefined = tout visible. */
   visibleNodeIds?: Set<string> | null;
   visibleLinkKeys?: Set<string> | null;
+  /** Sélection d'une couche entière (ex. une ontologie) : tout le reste
+      est estompé. Prioritée moindre que la sélection de nœud/arête. */
+  highlightIds?: Set<string> | null;
 }
 
 export function nodeRadius(degree: number | undefined): number {
@@ -75,6 +78,7 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
     onSelectLink,
     visibleNodeIds = null,
     visibleLinkKeys = null,
+    highlightIds = null,
   },
   ref
 ) {
@@ -82,6 +86,7 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
   const fgRef = useRef<any>(null);
   const boundsRef = useRef<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const nodeCacheRef = useRef(new Map<string, any>());
+  const linkCacheRef = useRef(new Map<string, any>());
   const firstFitRef = useRef(true);
   const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -111,6 +116,7 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
     onSelectLink,
     visibleNodeIds,
     visibleLinkKeys,
+    highlightIds,
   };
 
   // Instanciation unique
@@ -157,6 +163,11 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
       jitter._nodes = ns;
     };
     fg.d3Force("jitter", jitter);
+
+    // Répulsion allégée (voir NetworkCanvas3D) : gros gain CPU en continu
+    const charge = fg.d3Force("charge");
+    charge?.theta?.(1.2);
+    charge?.distanceMax?.(420);
 
     // --- Étirement élastique + épinglage : un nœud maintenu ~immobile en fin
     // de drag reste fixé sur place (fx/fy) ; relâché en mouvement, il reste
@@ -295,11 +306,14 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
     fg.nodeCanvasObject((node: any, ctx: CanvasRenderingContext2D, scale: number) => {
       const b = boundsRef.current;
       if (b && (node.x < b.x1 || node.x > b.x2 || node.y < b.y1 || node.y > b.y2)) return;
-      const { colorOf, dark, selectedId, neighbors } = stateRef.current;
+      const { colorOf, dark, selectedId, neighbors, highlightIds } = stateRef.current;
       const isSelected = selectedId === node.id;
       const isNeighbor =
         selectedId !== null && (neighbors.get(selectedId)?.has(node.id) ?? false);
-      const dimmed = selectedId !== null && !isSelected && !isNeighbor;
+      const dimmed =
+        selectedId !== null
+          ? !isSelected && !isNeighbor
+          : highlightIds !== null && !highlightIds.has(node.id);
 
       const r = nodeRadius(node.degree);
       ctx.globalAlpha = dimmed ? 0.15 : 1;
@@ -364,6 +378,13 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
         (l.source?.id === selectedId || l.target?.id === selectedId);
       if ((selectedId !== null || selectedLinkKey !== null) && !active) {
         return dark ? "rgba(90,89,82,0.12)" : "rgba(165,163,155,0.15)";
+      }
+      const hl = stateRef.current.highlightIds;
+      if (selectedId === null && selectedLinkKey === null && hl) {
+        const s = l.source?.id ?? l.source;
+        const t = l.target?.id ?? l.target;
+        if (!hl.has(s) && !hl.has(t))
+          return dark ? "rgba(90,89,82,0.12)" : "rgba(165,163,155,0.15)";
       }
       if (l.kind === "subclass") return dark ? "#5a5952" : "#a5a39b";
       return dark ? "#5f7ea6" : "#7a99c0";
@@ -471,7 +492,17 @@ const NetworkCanvas = forwardRef<NetworkCanvasHandle, Props>(function NetworkCan
       cache.set(n.id, obj);
       return obj;
     });
-    fg.graphData({ nodes: nodeObjs, links: links.map((l) => ({ ...l })) });
+    // Liens réutilisés par identité : la simulation d3 ne réinitialise que
+    // les éléments nouveaux, pas tout le layout.
+    const linkCache = linkCacheRef.current;
+    const linkObjs = links.map((l) => {
+      const key = l.key ?? `${l.source}|${l.target}|${l.label ?? ""}`;
+      const existing = linkCache.get(key);
+      const obj = existing ? Object.assign(existing, l) : { ...l };
+      linkCache.set(key, obj);
+      return obj;
+    });
+    fg.graphData({ nodes: nodeObjs, links: linkObjs });
     if (firstFitRef.current && nodes.length > 0) {
       firstFitRef.current = false;
       // Fit initial SAUF si une sélection est déjà demandée (focus depuis le

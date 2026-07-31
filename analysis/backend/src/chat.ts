@@ -154,7 +154,7 @@ let cards: Card[] = [];
 let cardByIri = new Map<string, Card>();
 let neighborNames = new Map<string, string[]>(); // IRI classe -> voisins (labels)
 
-function tokenize(s: string): string[] {
+export function tokenize(s: string): string[] {
   return s
     .toLowerCase()
     .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -326,13 +326,19 @@ interface ScoredCandidate {
 function retrieve(
   question: string,
   qv: Float32Array | null,
+  extra: ExtraIndex | null,
   k = 12
-): { top: Card[]; scored: ScoredCandidate[] } {
+): { top: Card[]; scored: ScoredCandidate[]; poolSize: number } {
   if (cards.length === 0) buildCards();
+  const pool = extra ? [...cards, ...extra.cards] : cards;
+  const vecAt = (i: number): Float32Array | null =>
+    i < cards.length
+      ? (vectors?.[i] ?? null)
+      : (extra!.vectors[i - cards.length] ?? null);
   const qTokens = tokenize(question);
 
   // Score lexical : recouvrement de tokens + bonus label exact
-  const lex = cards.map((c) => {
+  const lex = pool.map((c) => {
     let score = 0;
     for (const t of qTokens) if (c.tokens.has(t)) score++;
     const ql = question.toLowerCase();
@@ -341,18 +347,23 @@ function retrieve(
   });
   const lexMax = Math.max(...lex, 1);
 
-  const scored: ScoredCandidate[] = cards.map((c, i) => {
-    const semScore = qv && vectors ? cosine(qv, vectors[i]) : 0;
+  const scored: ScoredCandidate[] = pool.map((c, i) => {
+    const v = qv ? vecAt(i) : null;
+    const semScore = qv && v ? cosine(qv, v) : 0;
     const lexScore = lex[i] / lexMax;
     return {
       card: c,
       sem: semScore,
       lex: lexScore,
-      score: qv && vectors ? 0.65 * semScore + 0.35 * lexScore : lexScore,
+      score: qv && v ? 0.65 * semScore + 0.35 * lexScore : lexScore,
     };
   });
   scored.sort((a, b) => b.score - a.score);
-  return { top: scored.slice(0, k).map((s) => s.card), scored: scored.slice(0, 20) };
+  return {
+    top: scored.slice(0, k).map((s) => s.card),
+    scored: scored.slice(0, 20),
+    poolSize: pool.length,
+  };
 }
 
 /* --------------------------- Prompts ------------------------------- */
@@ -640,6 +651,12 @@ export async function drIndex(): Promise<{
 
 export { embed as embedTexts, llm as llmCall, cosine, CFG as chatConfig };
 
+/** Index additionnel (ontologies importées sélectionnées dans le chat). */
+export interface ExtraIndex {
+  cards: Card[];
+  vectors: Float32Array[];
+}
+
 /* ---- Question autonome : les relances (« et pour X ? ») sont réécrites
    avec le contexte de la conversation, pour que retrieval, routeur, SPARQL
    et outils graphe voient la vraie question. ------------------------------ */
@@ -669,7 +686,8 @@ async function condenseQuestion(question: string, history: string): Promise<stri
 
 export async function answerChat(
   messages: InMessage[],
-  emit: ChatEmit = () => {}
+  emit: ChatEmit = () => {},
+  extra: ExtraIndex | null = null
 ): Promise<ChatReply> {
   const lastUser = [...messages].reverse().find((m) => m?.role === "user");
   const question = typeof lastUser?.content === "string" ? lastUser.content.trim() : "";
@@ -727,10 +745,10 @@ export async function answerChat(
   // 2. Vector search hybride sur les fiches
   emit({ type: "stage", stage: "retrieve", status: "start" });
   const t1 = Date.now();
-  const { top: retrieved, scored } = retrieve(standalone, qv);
+  const { top: retrieved, scored, poolSize } = retrieve(standalone, qv, extra);
   emit({
     type: "retrieval",
-    total: cards.length,
+    total: poolSize,
     tookMs: Date.now() - t1,
     candidates: scored.map((s) => ({
       iri: s.card.iri,
@@ -783,6 +801,10 @@ export async function answerChat(
     "If the context does not contain the answer, say you could not find it in the " +
     "ontology — never invent classes, properties or facts.\n" +
     "- Cite the concepts you use as **Label** (`prefixed:IRI`).\n" +
+    "- The context may also contain classes from IMPORTED ontologies (their " +
+    "module is the ontology name) with their alignment links to the DR " +
+    "(equivalent / subclass of / close match). Use them, and make the DR " +
+    "links explicit when they help the answer.\n" +
     "- Answer in the SAME language as the question (English question => English " +
     "answer, French => French). Ignore the language of the ontology content.\n" +
     "- Be concise and structured (markdown: short paragraphs, lists).\n" +
