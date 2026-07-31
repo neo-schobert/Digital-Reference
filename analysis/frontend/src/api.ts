@@ -158,6 +158,13 @@ export interface WsOntology {
   similarityScore?: number;
 }
 
+/** Scores par facette (matchers indépendants, voir backend/similarity.ts) */
+export interface FacetSummary {
+  lexical: number;
+  structural?: number;
+  semantic?: number;
+}
+
 export interface CompareReport {
   createdAt: number;
   totalClasses: number;
@@ -172,6 +179,7 @@ export interface CompareReport {
     targetIri: string;
     module: string;
     score: number;
+    facets?: FacetSummary;
   }[];
 }
 
@@ -182,6 +190,9 @@ export interface MappingEntry {
   target?: string;
   targetIri?: string;
   confidence?: number;
+  score?: number;
+  facets?: FacetSummary;
+  importance?: number;
 }
 
 export interface MappingReport {
@@ -192,6 +203,7 @@ export interface MappingReport {
   counts: { equivalent: number; subclass: number; related: number; none: number };
   entries: MappingEntry[];
   file: string;
+  sssomFile?: string;
 }
 
 export function listWsOntologies(): Promise<WsOntology[]> {
@@ -252,6 +264,10 @@ export function fetchWsGraph(
 
 export function mappedTtlUrl(id: string): string {
   return `/api/workspace/ontologies/${encodeURIComponent(id)}/mapped.ttl`;
+}
+
+export function sssomTsvUrl(id: string): string {
+  return `/api/workspace/ontologies/${encodeURIComponent(id)}/mappings.sssom.tsv`;
 }
 
 export function fileUrl(name: string): string {

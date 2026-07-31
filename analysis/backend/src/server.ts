@@ -17,6 +17,7 @@ import {
   mapToDr,
   mappedFilePath,
   ontologyGraph,
+  sssomFilePath,
 } from "./workspace.js";
 import cors from "cors";
 import {
@@ -220,6 +221,15 @@ app.get("/api/workspace/ontologies/:id/mapped.ttl", (req, res) => {
     return;
   }
   res.type("text/turtle").download(path, "mapped-to-dr.ttl");
+});
+
+app.get("/api/workspace/ontologies/:id/mappings.sssom.tsv", (req, res) => {
+  const path = sssomFilePath(req.params.id);
+  if (!path) {
+    res.status(404).json({ error: "No mapping generated yet" });
+    return;
+  }
+  res.type("text/tab-separated-values").download(path, "mappings.sssom.tsv");
 });
 
 /* --- Démarrage ------------------------------------------------------- */

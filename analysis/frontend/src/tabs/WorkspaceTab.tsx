@@ -7,7 +7,9 @@ import {
   loadWsResults,
   mapOntology,
   mappedTtlUrl,
+  sssomTsvUrl,
   type CompareReport,
+  type FacetSummary,
   type MappingReport,
   type WsOntology,
 } from "../api";
@@ -15,8 +17,10 @@ import { requestGraphFocus } from "../bus";
 
 /**
  * Workspace : importer des ontologies externes, les comparer au Digital
- * Reference et générer une ontologie « mappée » qui se raccroche au DR
- * (equivalentClass / subClassOf / closeMatch) sans jamais le modifier.
+ * Reference (similarité multi-facettes : lexicale / structurelle /
+ * sémantique) et générer une ontologie « mappée » raccrochée au DR par
+ * des axiomes SKOS (exactMatch / broadMatch / closeMatch) réifiés avec
+ * leurs scores (SSSOM), sans jamais modifier le DR.
  * Tout est persisté côté backend (SQLite + fichiers).
  */
 
@@ -60,11 +64,50 @@ function ScoreBadge({
 }
 
 const REL_LABEL: Record<string, string> = {
-  equivalent: "≡ equivalent",
-  subclass: "⊑ subclass of",
+  equivalent: "≡ exact match",
+  subclass: "⊑ broad match",
   related: "≈ close match",
   none: "— unlinked",
 };
+
+/* Mini-barres lexical / structurel / sémantique : montrent POURQUOI un
+   match est proposé (un lexical fort + structurel faible = faux ami
+   probable ; l'inverse = vrai match sous un autre nom). */
+const FACETS: [keyof FacetSummary, string, string][] = [
+  ["lexical", "lex", "#4a90d9"],
+  ["structural", "str", "#9b59b6"],
+  ["semantic", "sem", "#2fa146"],
+];
+
+function FacetBars({ facets }: { facets?: FacetSummary }) {
+  if (!facets) return <span className="ws-muted">—</span>;
+  const title = FACETS.map(([key, name]) => {
+    const v = facets[key];
+    return `${name === "lex" ? "lexical" : name === "str" ? "structural" : "semantic"}: ${
+      v !== undefined ? v.toFixed(3) : "n/a"
+    }`;
+  }).join("\n");
+  return (
+    <div className="ws-facets" title={title}>
+      {FACETS.map(([key, name, color]) => {
+        const v = facets[key];
+        return (
+          <div className="ws-facet" key={key}>
+            <span className="ws-facet-name">{name}</span>
+            <span className="ws-facet-bar">
+              {v !== undefined && (
+                <span
+                  className="ws-facet-fill"
+                  style={{ width: `${Math.round(v * 100)}%`, background: color }}
+                />
+              )}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function WorkspaceTab() {
   const [ontologies, setOntologies] = useState<WsOntology[]>([]);
@@ -277,7 +320,7 @@ export default function WorkspaceTab() {
                   <ScoreBadge
                     score={compare.similarityScore}
                     label="similarity"
-                    title="Average best-match cosine similarity to the DR (before LLM verification)"
+                    title="Average best-match aggregated similarity to the DR (lexical + structural + semantic facets, before LLM verification)"
                   />
                 )}
                 <button
@@ -304,6 +347,16 @@ export default function WorkspaceTab() {
                 {mapping && (
                   <a className="ws-btn" href={mappedTtlUrl(current.id)} download>
                     ⬇ mapped.ttl
+                  </a>
+                )}
+                {mapping?.sssomFile && (
+                  <a
+                    className="ws-btn"
+                    href={sssomTsvUrl(current.id)}
+                    download
+                    title="SSSOM TSV — standard exchange format for ontology mappings"
+                  >
+                    ⬇ SSSOM
                   </a>
                 )}
               </div>
@@ -378,25 +431,26 @@ function CompareView({ report }: { report: CompareReport }) {
         </strong>{" "}
         — {report.analyzed} classes compared to the DR
         {report.truncated > 0 && ` (${report.truncated} skipped — cap ${total})`} ·
-        best-match similarity distribution:
+        aggregated multi-facet score (lexical + structural + semantic) ·
+        best-match distribution:
       </div>
       <div className="ws-buckets">
         <div className="ws-bucket">
           <span className="ws-bucket-bar strong" style={{ width: `${pct(report.buckets.strong)}%` }} />
           <span className="ws-bucket-label">
-            strong (≥ 0.75) — {report.buckets.strong} ({pct(report.buckets.strong)}%)
+            strong (≥ 0.70) — {report.buckets.strong} ({pct(report.buckets.strong)}%)
           </span>
         </div>
         <div className="ws-bucket">
           <span className="ws-bucket-bar medium" style={{ width: `${pct(report.buckets.medium)}%` }} />
           <span className="ws-bucket-label">
-            medium (0.60–0.75) — {report.buckets.medium} ({pct(report.buckets.medium)}%)
+            medium (0.55–0.70) — {report.buckets.medium} ({pct(report.buckets.medium)}%)
           </span>
         </div>
         <div className="ws-bucket">
           <span className="ws-bucket-bar weak" style={{ width: `${pct(report.buckets.weak)}%` }} />
           <span className="ws-bucket-label">
-            weak (&lt; 0.60) — {report.buckets.weak} ({pct(report.buckets.weak)}%)
+            weak (&lt; 0.55) — {report.buckets.weak} ({pct(report.buckets.weak)}%)
           </span>
         </div>
       </div>
@@ -406,7 +460,8 @@ function CompareView({ report }: { report: CompareReport }) {
             <th>Imported class</th>
             <th>Best DR match</th>
             <th>Module</th>
-            <th style={{ textAlign: "right" }}>Similarity</th>
+            <th>Facets</th>
+            <th style={{ textAlign: "right" }}>Score</th>
           </tr>
         </thead>
         <tbody>
@@ -423,12 +478,15 @@ function CompareView({ report }: { report: CompareReport }) {
                 </span>
               </td>
               <td className="ws-muted">{m.module}</td>
+              <td>
+                <FacetBars facets={m.facets} />
+              </td>
               <td style={{ textAlign: "right" }}>
                 <span
                   className={
-                    m.score >= 0.75
+                    m.score >= 0.7
                       ? "ws-score strong"
-                      : m.score >= 0.6
+                      : m.score >= 0.55
                         ? "ws-score medium"
                         : "ws-score weak"
                   }
@@ -456,10 +514,10 @@ function MappingView({ report }: { report: MappingReport }) {
           DR-link score: {report.linkScore}%
         </strong>{" "}
         — {linked}/{report.entries.length} classes linked to the DR — ≡{" "}
-        {report.counts.equivalent} equivalent · ⊑ {report.counts.subclass}{" "}
-        subclass · ≈ {report.counts.related} close match · —{" "}
-        {report.counts.none} kept unlinked. The generated ontology keeps every
-        imported entity and adds the DR link axioms; the DR is untouched.
+        {report.counts.equivalent} exact · ⊑ {report.counts.subclass} broad · ≈{" "}
+        {report.counts.related} close · — {report.counts.none} kept unlinked.
+        SKOS mapping axioms, reified with their similarity facets (SSSOM); the
+        DR is untouched.
       </div>
       <table className="ws-table">
         <thead>
@@ -467,13 +525,24 @@ function MappingView({ report }: { report: MappingReport }) {
             <th>Imported class</th>
             <th>Relation</th>
             <th>DR class</th>
+            <th>Facets</th>
             <th style={{ textAlign: "right" }}>Confidence</th>
           </tr>
         </thead>
         <tbody>
           {report.entries.map((e) => (
             <tr key={e.sourceIri} className={e.relation === "none" ? "ws-none" : ""}>
-              <td title={e.sourceIri}>{e.source}</td>
+              <td title={e.sourceIri}>
+                {e.source}
+                {e.importance !== undefined && e.importance >= 0.5 && (
+                  <span
+                    className="ws-important"
+                    title={`Central class in the imported ontology (importance ${e.importance.toFixed(2)})`}
+                  >
+                    ★
+                  </span>
+                )}
+              </td>
               <td>
                 <span className={`ws-rel ${e.relation}`}>{REL_LABEL[e.relation]}</span>
               </td>
@@ -490,6 +559,7 @@ function MappingView({ report }: { report: MappingReport }) {
                   <span className="ws-muted">—</span>
                 )}
               </td>
+              <td>{e.relation !== "none" ? <FacetBars facets={e.facets} /> : <span className="ws-muted">—</span>}</td>
               <td style={{ textAlign: "right" }} className="ws-muted">
                 {e.confidence !== undefined ? e.confidence.toFixed(2) : ""}
               </td>

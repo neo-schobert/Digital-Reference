@@ -2457,3 +2457,43 @@ button:focus-visible {
   color: var(--text-primary);
   background: color-mix(in srgb, var(--surface-3) 60%, transparent);
 }
+
+/* --- Facettes de similarité (Workspace) --- */
+.ws-facets {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 76px;
+  max-width: 110px;
+}
+.ws-facet {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.ws-facet-name {
+  font-size: 9px;
+  line-height: 1;
+  width: 20px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ws-facet-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.ws-facet-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+}
+.ws-important {
+  margin-left: 5px;
+  font-size: 11px;
+  color: #eda100;
+  cursor: default;
+}
