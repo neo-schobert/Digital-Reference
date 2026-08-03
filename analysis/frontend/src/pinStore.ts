@@ -61,6 +61,15 @@ export function totalPinCount(): number {
   return mem["2d"].size + mem["3d"].size;
 }
 
+/**
+ * Classes épinglées, tous modes de vue confondus : une classe épinglée à la
+ * fois en 2D et en 3D ne compte qu'une fois. Sert à exporter la sélection
+ * faite à la main dans le graphe.
+ */
+export function pinnedIds(): string[] {
+  return [...new Set([...mem["2d"].keys(), ...mem["3d"].keys()])];
+}
+
 /** Persiste l'état courant : il sera restauré au prochain chargement. */
 export function savePins(): void {
   localStorage.setItem(

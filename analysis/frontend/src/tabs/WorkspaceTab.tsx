@@ -14,6 +14,7 @@ import {
   type WsOntology,
 } from "../api";
 import { requestGraphFocus } from "../bus";
+import SidePanel from "../components/SidePanel";
 
 /**
  * Workspace : importer des ontologies externes, les comparer au Digital
@@ -220,7 +221,15 @@ export default function WorkspaceTab() {
   return (
     <div className="ws-page">
       {/* ---- Liste des ontologies importées ---- */}
-      <aside className="ws-side">
+      <SidePanel
+        id="ws-ontologies"
+        side="left"
+        title="Ontologies"
+        defaultWidth={260}
+        min={190}
+        max={460}
+        className="ws-side"
+      >
         <button
           className="new-chat-btn"
           disabled={busy !== null}
@@ -282,7 +291,7 @@ export default function WorkspaceTab() {
             </div>
           )}
         </div>
-      </aside>
+      </SidePanel>
 
       {/* ---- Détails / actions ---- */}
       <div className="ws-main">

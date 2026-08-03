@@ -52,7 +52,8 @@ import { buildColorMap, NEUTRAL_DARK, NEUTRAL_LIGHT } from "../palette";
 import type { BuiltGraph, GraphLink, GraphNode, Meta } from "../types";
 import NetworkCanvas, { NetworkCanvasHandle } from "../components/NetworkCanvas";
 import NetworkCanvas3D, { NetworkCanvas3DHandle } from "../components/NetworkCanvas3D";
-import { clearPins, savePins, subscribePins, totalPinCount } from "../pinStore";
+import SidePanel from "../components/SidePanel";
+import { clearPins, pinnedIds, savePins, subscribePins, totalPinCount } from "../pinStore";
 
 type GroupMode = "lobes" | "modules";
 type ViewMode = "3d" | "2d";
@@ -117,6 +118,8 @@ export default function GraphTab({ meta, dark }: Props) {
   // Épinglages : compteur vivant + flash de confirmation du « Save »
   const [pinCount, setPinCount] = useState(() => totalPinCount());
   const [pinsSaved, setPinsSaved] = useState(false);
+  const [pinsBusy, setPinsBusy] = useState(false);
+  const [pinsError, setPinsError] = useState<string | null>(null);
   useEffect(() => subscribePins(() => setPinCount(totalPinCount())), []);
 
 
@@ -647,6 +650,50 @@ export default function GraphTab({ meta, dark }: Props) {
     return m;
   }, [combined]);
 
+  /**
+   * Exporte les seules classes épinglées et les axiomes qui les relient entre
+   * elles : même moteur que le Split, avec les épingles pour graines et aucune
+   * règle d'expansion — donc rien d'autre que la sélection faite à la main.
+   *
+   * Les classes issues d'une ontologie importée sont écartées : l'export relit
+   * le store du Digital Reference, qui ne les contient pas.
+   */
+  const doExportPins = useCallback(async () => {
+    const pinned = pinnedIds().filter((id) => !nodeById.get(id)?.source);
+    const skipped = pinnedIds().length - pinned.length;
+    if (pinned.length === 0) {
+      setPinsError("No pinned Digital Reference class to export.");
+      return;
+    }
+    setPinsBusy(true);
+    setPinsError(null);
+    try {
+      const blob = await exportSplit({
+        name: "pinned classes",
+        seeds: pinned,
+        subclasses: false,
+        superclasses: false,
+        hops: 0,
+        includeExternal: true,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "pinned-classes.ttl";
+      a.click();
+      URL.revokeObjectURL(url);
+      setPinsError(
+        skipped > 0
+          ? `${skipped} imported class${skipped > 1 ? "es" : ""} skipped — only Digital Reference classes can be exported.`
+          : null
+      );
+    } catch (e) {
+      setPinsError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPinsBusy(false);
+    }
+  }, [nodeById]);
+
   const selectedNode = selectedId ? (nodeById.get(selectedId) ?? null) : null;
   const selectedLink = useMemo(
     () =>
@@ -749,7 +796,15 @@ export default function GraphTab({ meta, dark }: Props) {
   return (
     <div className="graph-layout">
       {/* ------------- Panneau latéral gauche ------------- */}
-      <aside className="sidebar">
+      <SidePanel
+        id="graph-filters"
+        side="left"
+        title="Filters"
+        defaultWidth={290}
+        min={230}
+        max={480}
+        className="sidebar"
+      >
         <div className="search-box">
           <input
             placeholder="Search for a class…"
@@ -861,7 +916,7 @@ export default function GraphTab({ meta, dark }: Props) {
             ))}
           </div>
         </div>
-      </aside>
+      </SidePanel>
 
       {/* ------------- Zone graphe ------------- */}
       <div className="graph-main">
@@ -1221,8 +1276,16 @@ export default function GraphTab({ meta, dark }: Props) {
               {pinsSaved ? "Saved ✓" : "Save"}
             </button>
             <button
+              disabled={pinsBusy}
+              onClick={() => void doExportPins()}
+              title="Download just these classes and the axioms between them, as a standalone .ttl"
+            >
+              {pinsBusy ? "Exporting…" : "⬇ Export"}
+            </button>
+            <button
               onClick={() => {
                 clearPins();
+                setPinsError(null);
                 canvas2dRef.current?.resetPins();
                 canvas3dRef.current?.resetPins();
               }}
@@ -1230,6 +1293,7 @@ export default function GraphTab({ meta, dark }: Props) {
             >
               Reset
             </button>
+            {pinsError && <div className="pin-error">⚠️ {pinsError}</div>}
           </div>
         )}
         <div
@@ -1254,7 +1318,15 @@ export default function GraphTab({ meta, dark }: Props) {
       </div>
 
       {/* ------------- Panneau de détails ------------- */}
-      <aside className="details-panel">
+      <SidePanel
+        id="graph-details"
+        side="right"
+        title="Details"
+        defaultWidth={320}
+        min={250}
+        max={560}
+        className="details-panel"
+      >
         {selectedLink ? (
           <>
             <h2>{selectedLink.label ?? "subClassOf"}</h2>
@@ -1385,7 +1457,7 @@ export default function GraphTab({ meta, dark }: Props) {
             or search for a class in the left panel.
           </div>
         )}
-      </aside>
+      </SidePanel>
     </div>
   );
 }
