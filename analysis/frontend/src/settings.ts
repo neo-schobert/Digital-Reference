@@ -44,3 +44,24 @@ export function apiUrl(path: string): string {
   const base = getSettings().apiBase.trim().replace(/\/+$/, "");
   return base ? base + path : path;
 }
+
+function isNgrokUrl(url: string): boolean {
+  try {
+    const u = new URL(url, window.location.origin);
+    return u.hostname.includes("ngrok");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * ngrok free tunnels can show a browser-warning interstitial.
+ * This header bypasses it so API fetches return JSON instead of an HTML page.
+ */
+export function apiHeaders(url: string, base?: HeadersInit): HeadersInit | undefined {
+  const headers = new Headers(base);
+  if (isNgrokUrl(url)) {
+    headers.set("ngrok-skip-browser-warning", "true");
+  }
+  return headers.keys().next().done ? undefined : headers;
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiUrl, getSettings, saveSettings } from "../settings";
+import { apiHeaders, apiUrl, getSettings, saveSettings } from "../settings";
 
 /* ------------------------------------------------------------------ */
 /* Modal de réglages (roue crantée). Pour l'instant : l'endpoint du    */
@@ -36,7 +36,7 @@ export default function SettingsModal({ onClose }: Props) {
     const base = apiBase.trim().replace(/\/+$/, "");
     const url = base ? `${base}/api/health` : "/api/health";
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: apiHeaders(url) });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const body = await res.json();
       setTest({

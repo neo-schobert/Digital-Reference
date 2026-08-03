@@ -1,5 +1,5 @@
 import type { BuiltGraph, ChatMessage, ChatReply, Meta, SparqlResult } from "./types";
-import { apiUrl } from "./settings";
+import { apiHeaders, apiUrl } from "./settings";
 
 /* Toutes les routes sont relatives à un PROJET : un projet = une ontologie
    de référence + les ontologies importées qu'on lui compare. */
@@ -17,15 +17,20 @@ async function readError(res: Response): Promise<string> {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(apiUrl(url));
+  const target = apiUrl(url);
+  const res = await fetch(target, { headers: apiHeaders(target) });
   if (!res.ok) throw new Error(await readError(res));
   return res.json();
 }
 
 async function sendJson<T>(url: string, method: string, body?: unknown): Promise<T> {
-  const res = await fetch(apiUrl(url), {
+  const target = apiUrl(url);
+  const res = await fetch(target, {
     method,
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    headers: apiHeaders(
+      target,
+      body === undefined ? undefined : { "Content-Type": "application/json" }
+    ),
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readError(res));
@@ -274,9 +279,10 @@ export async function streamChat(
   onEvent: (ev: Record<string, unknown>) => void,
   context?: ChatContext
 ): Promise<ChatReply> {
-  const res = await fetch(apiUrl(`${P(projectId)}/chat/stream`), {
+  const target = apiUrl(`${P(projectId)}/chat/stream`);
+  const res = await fetch(target, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders(target, { "Content-Type": "application/json" }),
     body: JSON.stringify({
       messages: messages.map(({ role, content }) => ({ role, content })),
       context,
@@ -366,9 +372,10 @@ export async function exportSplit(
   projectId: string,
   req: SplitExportRequest
 ): Promise<Blob> {
-  const res = await fetch(apiUrl(`${P(projectId)}/split/export`), {
+  const target = apiUrl(`${P(projectId)}/split/export`);
+  const res = await fetch(target, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders(target, { "Content-Type": "application/json" }),
     body: JSON.stringify(req),
   });
   if (!res.ok) throw new Error(await readError(res));
