@@ -45,6 +45,14 @@ function persist(id: string, state: PanelState): void {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
+/* Déploiement à distance : une action ailleurs dans la page (p. ex. « Split
+   from pins ») peut avoir besoin de rouvrir le panneau qui l'accueille. */
+const expandListeners = new Set<(id: string) => void>();
+
+export function expandSidePanel(id: string): void {
+  expandListeners.forEach((fn) => fn(id));
+}
+
 export interface SidePanelProps {
   /** Clé de persistance (unique par panneau de l'application). */
   id: string;
@@ -78,6 +86,16 @@ export default function SidePanel({
   useEffect(() => {
     persist(id, { width, collapsed });
   }, [id, width, collapsed]);
+
+  useEffect(() => {
+    const fn = (target: string) => {
+      if (target === id) setCollapsed(false);
+    };
+    expandListeners.add(fn);
+    return () => {
+      expandListeners.delete(fn);
+    };
+  }, [id]);
 
   // Le geste est suivi en ref : le pointer capture nous garantit de recevoir
   // move/up même si le curseur passe au-dessus du canvas WebGL.

@@ -1086,11 +1086,6 @@ const NetworkCanvas3D = forwardRef<NetworkCanvas3DHandle, Props>(function Networ
           })}
         </svg>
       </div>
-      <div className="hint-nav">
-        right-click / middle-click: rotate (around the selection) · left-click:
-        pan · wheel: zoom · drag a node: elastic stretch · hold it still ≈1 s
-        to pin it (a quick release unpins)
-      </div>
     </div>
   );
 });

@@ -1,29 +1,49 @@
-import { readFileSync, readdirSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { readFileSync } from "node:fs";
 import oxigraph from "oxigraph";
+import {
+  HttpError,
+  OntologyFile,
+  onProjectInvalidated,
+  referenceFiles,
+  requireProject,
+} from "./projects.js";
+import {
+  Term,
+  WELL_KNOWN_PREFIXES,
+  WELL_KNOWN_VOCABULARIES,
+  extOf,
+  loadInto,
+  localName,
+  namespaceOf,
+  select,
+  type Store,
+} from "./rdf.js";
 
 /* ------------------------------------------------------------------ */
-/* Types partagés avec le frontend (dupliqués côté front)              */
+/* Référence d'un projet                                               */
+/*                                                                     */
+/* L'ontologie de référence d'un projet est chargée avec la fermeture  */
+/* de ses dépendances dans un store oxigraph, puis convertie en graphe */
+/* de classes (mêmes structures qu'avant, mais plus rien n'est codé en */
+/* dur pour le Digital Reference) :                                    */
+/*  - modules : déduits des namespaces que la référence définit        */
+/*    elle-même (internes) vs ceux de ses dépendances (externes) ;     */
+/*  - groupes de haut niveau (« lobes ») : classes `*_Lobe` si         */
+/*    l'ontologie suit cette convention, sinon les racines de la       */
+/*    hiérarchie ;                                                     */
+/*  - préfixes : ceux déclarés dans les fichiers + les usuels.         */
 /* ------------------------------------------------------------------ */
 
 export interface GraphNode {
   id: string; // IRI
   label: string;
   module: string;
-  /** Lobes du Digital Reference auxquels la classe se rattache (via subClassOf*) */
+  /** Groupes de haut niveau auxquels la classe se rattache (via subClassOf*) */
   lobes: string[];
   comment?: string;
   external: boolean;
   degree: number;
   attributes: { iri: string; label: string; range?: string }[];
-}
-
-export interface LobeInfo {
-  id: string; // local name, ex. "Supply_Chain_Lobe"
-  iri: string;
-  label: string;
-  comment?: string;
-  classCount: number;
 }
 
 export interface GraphLink {
@@ -34,6 +54,19 @@ export interface GraphLink {
   iri?: string;
 }
 
+export interface BuiltGraph {
+  nodes: GraphNode[];
+  links: GraphLink[];
+}
+
+export interface LobeInfo {
+  id: string; // nom local, ex. "Supply_Chain_Lobe"
+  iri: string;
+  label: string;
+  comment?: string;
+  classCount: number;
+}
+
 export interface ModuleInfo {
   id: string;
   namespace: string;
@@ -41,7 +74,16 @@ export interface ModuleInfo {
   external: boolean;
 }
 
+export interface MetaFile {
+  ontologyId: string;
+  name: string;
+  size: number;
+  role: "reference" | "dependency";
+}
+
 export interface Meta {
+  project: { id: string; name: string };
+  reference: { ontologyId: string; name: string };
   ontology: {
     title: string;
     description: string;
@@ -52,151 +94,28 @@ export interface Meta {
   counts: { classes: number; objectProperties: number; datatypeProperties: number };
   modules: ModuleInfo[];
   lobes: LobeInfo[];
+  /** Libellé du regroupement de haut niveau : « Lobes » ou « Groups » */
+  groupLabel: string;
   prefixes: Record<string, string>;
-  files: { name: string; path: string; size: number }[];
+  files: MetaFile[];
 }
 
-/* ------------------------------------------------------------------ */
-/* Localisation des fichiers                                           */
-/* ------------------------------------------------------------------ */
-
-const DR_ROOT = resolve(process.env.DR_ROOT ?? join(import.meta.dirname, "..", "..", ".."));
-const MAIN_TTL = join(DR_ROOT, "DigitalReference.ttl");
-const DEPS_DIR = join(DR_ROOT, "dependencies");
-
-export function listFiles(): { name: string; path: string; size: number }[] {
-  const files: { name: string; path: string; size: number }[] = [];
-  const push = (name: string, path: string) => {
-    const size = readFileSync(path).byteLength;
-    files.push({ name, path, size });
-  };
-  push("DigitalReference.ttl", MAIN_TTL);
-  if (existsSync(DEPS_DIR)) {
-    for (const f of readdirSync(DEPS_DIR).filter((f) => f.endsWith(".ttl")).sort()) {
-      push(`dependencies/${f}`, join(DEPS_DIR, f));
-    }
-  }
-  return files;
+export interface BuiltReference {
+  projectId: string;
+  store: Store;
+  graph: BuiltGraph;
+  meta: Meta;
+  prefixes: Record<string, string>;
+  /** en-tête `PREFIX …` prêt à préfixer une requête SPARQL */
+  prefixHeader: string;
+  files: OntologyFile[];
+  /** IRI → forme préfixée (`dr:Wafer`) quand un préfixe correspond */
+  shrink: (iri: string) => string;
+  /** Module d'un IRI quelconque (y compris les propriétés, hors graphe) */
+  moduleOf: (iri: string) => { module: string; external: boolean };
 }
 
-export function filePathFor(name: string): string | null {
-  const found = listFiles().find((f) => f.name === name);
-  return found ? found.path : null;
-}
-
-/* ------------------------------------------------------------------ */
-/* Préfixes / modules                                                  */
-/* ------------------------------------------------------------------ */
-
-export const PREFIXES: Record<string, string> = {
-  dr: "http://www.w3id.org/ecsel-dr#",
-  "ecsel-dr-AT": "http://www.w3id.org/ecsel-dr-AT#",
-  "ecsel-dr-DF": "http://www.w3id.org/ecsel-dr-DF#",
-  "ecsel-dr-OM": "http://www.w3id.org/ecsel-dr-OM#",
-  "ecsel-dr-SO": "http://www.w3id.org/ecsel-dr-SO#",
-  "ecsel-dr-BMS": "http://www.w3id.org/ecsel-dr-BMS#",
-  "ecsel-dr-GDM": "http://www.w3id.org/ecsel-dr-GDM#",
-  "ecsel-dr-PMV": "http://www.w3id.org/ecsel-dr-PMV#",
-  "ecsel-dr-PROD": "http://www.w3id.org/ecsel-dr-PROD#",
-  "ecsel-dr-OOSMP": "http://www.w3id.org/ecsel-dr-OOSMP#",
-  "ecsel-dr-RAMI40": "http://www.w3id.org/ecsel-dr-RAMI40#",
-  "ecsel-dr-Planning": "http://www.w3id.org/ecsel-dr-Planning#",
-  "ecsel-dr-Incoterms": "http://www.w3id.org/ecsel-dr-Incoterms#",
-  "ecsel-dr-CO2Savings": "http://www.w3id.org/ecsel-dr-CO2Savings#",
-  "ecsel-dr-Cloud-AH": "http://www.w3id.org/ecsel-dr-Cloud-AH#",
-  "ecsel-dr-Power-PWR": "http://www.w3id.org/ecsel-dr-Power-PWR#",
-  "ecsel-dr-Planning-SCP": "http://www.w3id.org/ecsel-dr-Planning-SCP#",
-  "ecsel-dr-Planning-DF": "http://www.w3id.org/ecsel-dr-Planning-DF#",
-  "ecsel-dr-Organization": "http://www.w3id.org/ecsel-dr-Organization#",
-  "ecsel-dr-Organization-ORG": "http://www.w3id.org/ecsel-dr-Organization-ORG#",
-  "ecsel-dr-PWR": "http://www.w3id.org/ecsel-dr-PWR#",
-  owl: "http://www.w3.org/2002/07/owl#",
-  rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-  rdfs: "http://www.w3.org/2000/01/rdf-schema#",
-  xsd: "http://www.w3.org/2001/XMLSchema#",
-  skos: "http://www.w3.org/2004/02/skos/core#",
-  foaf: "http://xmlns.com/foaf/0.1/",
-  dc: "http://purl.org/dc/elements/1.1/",
-  terms: "http://purl.org/dc/terms/",
-  schema: "http://schema.org/",
-  org: "http://www.w3.org/ns/org#",
-  sosa: "http://www.w3.org/ns/sosa/",
-  ssn: "http://www.w3.org/ns/ssn/",
-  "ssn-system": "http://www.w3.org/ns/ssn/systems/",
-  "ssn-ext": "http://www.w3.org/ns/ssn/ext/",
-  time: "http://www.w3.org/2006/time#",
-};
-
-const EXTERNAL_MODULES: [string, string][] = [
-  ["http://www.w3.org/ns/ssn/systems/", "SSN-System"],
-  ["http://www.w3.org/ns/ssn/ext/", "SSN-Ext"],
-  ["http://www.w3.org/ns/ssn/", "SSN"],
-  ["http://www.w3.org/ns/sosa/", "SOSA"],
-  ["http://www.w3.org/2006/time#", "Time"],
-  ["http://schema.org/", "Schema.org"],
-  ["http://www.w3.org/ns/org#", "W3C-Org"],
-  ["http://xmlns.com/foaf/0.1/", "FOAF"],
-  ["http://www.w3.org/2004/02/skos/core#", "SKOS"],
-];
-
-const INTERNAL_RE = /^http:\/\/www\.w3id\.org\/ecsel-dr(?:-([A-Za-z0-9-]+))?#/;
-
-export function moduleOf(iri: string): { module: string; external: boolean } {
-  const m = iri.match(INTERNAL_RE);
-  if (m) return { module: m[1] ?? "Core", external: false };
-  for (const [ns, name] of EXTERNAL_MODULES) {
-    if (iri.startsWith(ns)) return { module: name, external: true };
-  }
-  return { module: "Autres", external: true };
-}
-
-function localName(iri: string): string {
-  const idx = Math.max(iri.lastIndexOf("#"), iri.lastIndexOf("/"));
-  return idx >= 0 ? iri.slice(idx + 1) : iri;
-}
-
-/* ------------------------------------------------------------------ */
-/* Store oxigraph                                                      */
-/* ------------------------------------------------------------------ */
-
-export const store = new oxigraph.Store();
-
-function loadTtl(path: string) {
-  const data = readFileSync(path, "utf8");
-  try {
-    store.load(data, { format: "text/turtle", base_iri: "http://www.w3id.org/ecsel-dr#" });
-  } catch (e) {
-    // Signature positionnelle des anciennes versions d'oxigraph
-    (store.load as unknown as (d: string, f: string, b: string) => void)(
-      data,
-      "text/turtle",
-      "http://www.w3id.org/ecsel-dr#"
-    );
-  }
-}
-
-const SPARQL_PREFIX_HEADER = Object.entries(PREFIXES)
-  .map(([p, ns]) => `PREFIX ${p}: <${ns}>`)
-  .join("\n");
-
-type Term = { termType: string; value: string; language?: string; datatype?: { value: string } };
-type Binding = Map<string, Term>;
-
-function q(sparql: string): Binding[] {
-  return store.query(SPARQL_PREFIX_HEADER + "\n" + sparql) as Binding[];
-}
-
-/* ------------------------------------------------------------------ */
-/* Construction du graphe (une fois au démarrage)                      */
-/* ------------------------------------------------------------------ */
-
-export interface BuiltGraph {
-  nodes: GraphNode[];
-  links: GraphLink[];
-}
-
-let fullGraph: BuiltGraph = { nodes: [], links: [] };
-let meta: Meta | null = null;
+/* --------------------------- Construction --------------------------- */
 
 function preferEnglish(current: string | undefined, term: Term | undefined): string | undefined {
   if (!term) return current;
@@ -205,14 +124,166 @@ function preferEnglish(current: string | undefined, term: Term | undefined): str
   return current;
 }
 
-export function buildGraph(): void {
-  const t0 = Date.now();
-  loadTtl(MAIN_TTL);
-  if (existsSync(DEPS_DIR)) {
-    for (const f of readdirSync(DEPS_DIR).filter((f) => f.endsWith(".ttl")).sort()) {
-      loadTtl(join(DEPS_DIR, f));
+/** Nom court lisible pour un namespace, à partir des préfixes déclarés. */
+function nameForNamespace(ns: string, prefixes: Record<string, string>): string {
+  for (const [p, value] of Object.entries(prefixes)) {
+    if (value === ns) return p;
+  }
+  const trimmed = ns.replace(/[#/]$/, "");
+  const seg = trimmed.slice(Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf(":")) + 1);
+  return seg || ns;
+}
+
+/**
+ * Racine commune des noms de modules internes (`ecsel-dr-AT` → `AT`).
+ * On retient la plus longue racine partagée par la MAJORITÉ des noms : un
+ * ou deux namespaces exotiques ne doivent pas empêcher le raccourcissement.
+ */
+function stripCommonStem(names: string[]): Map<string, string> {
+  const counts = new Map<string, number>();
+  for (const n of names) {
+    for (let i = 1; i < n.length; i++) {
+      if ("-_.".includes(n[i])) {
+        const stem = n.slice(0, i + 1);
+        counts.set(stem, (counts.get(stem) ?? 0) + 1);
+      }
     }
   }
+  const threshold = Math.max(2, Math.ceil(names.length / 2));
+  let stem = "";
+  for (const [s, c] of counts) {
+    if (c >= threshold && s.length > stem.length) stem = s;
+  }
+  const out = new Map<string, string>();
+  for (const n of names) {
+    const short = stem && n.startsWith(stem) ? n.slice(stem.length) : n;
+    out.set(n, short || n);
+  }
+  return out;
+}
+
+interface Classifier {
+  moduleOf: (iri: string) => { module: string; external: boolean };
+  moduleNamespace: Map<string, string>;
+}
+
+/**
+ * Classification des IRIs en modules : ce que la référence définit
+ * elle-même est « interne » (un module par namespace), le reste vient des
+ * dépendances ou de vocabulaires tiers connus.
+ */
+function buildClassifier(
+  files: OntologyFile[],
+  prefixes: Record<string, string>
+): Classifier {
+  const reference = files.find((f) => f.role === "reference");
+  // Un namespace « interne » est défini par la référence elle-même : ni par
+  // une de ses dépendances (SOSA reste SOSA même si la référence l'annote),
+  // ni par un vocabulaire standard (owl, skos, dcterms…).
+  const depNs = new Set<string>();
+  for (const f of files) {
+    if (f.role === "reference") continue;
+    for (const ns of f.namespaces) depNs.add(ns);
+  }
+  const standardNs = new Set(Object.values(WELL_KNOWN_PREFIXES));
+  const isStandard = (ns: string) =>
+    standardNs.has(ns) || WELL_KNOWN_VOCABULARIES.some(([p]) => ns.startsWith(p));
+  const baseCandidates = reference?.ontologyIri
+    ? [`${reference.ontologyIri}#`, `${reference.ontologyIri}/`, reference.ontologyIri]
+    : [];
+  // Le namespace de la référence elle-même reste TOUJOURS interne, même
+  // s'il s'agit d'un vocabulaire standard (un projet peut très bien prendre
+  // SOSA ou SKOS comme référence).
+  const ownNs = baseCandidates.filter((c) => (reference?.namespaces ?? []).includes(c));
+  const internal = new Set([
+    ...ownNs,
+    ...(reference?.namespaces ?? []).filter(
+      (ns) => !depNs.has(ns) && !isStandard(ns)
+    ),
+  ]);
+  const baseNs = baseCandidates.find((c) => internal.has(c)) ?? [...internal][0] ?? "";
+
+  const rawNames = new Map<string, string>();
+  for (const ns of internal) {
+    if (ns === baseNs) continue;
+    rawNames.set(ns, nameForNamespace(ns, prefixes));
+  }
+  const shortened = stripCommonStem([...rawNames.values()]);
+  const internalName = new Map<string, string>();
+  if (baseNs) internalName.set(baseNs, "Core");
+  for (const [ns, raw] of rawNames) internalName.set(ns, shortened.get(raw) ?? raw);
+
+  const external = new Map<string, string>();
+  for (const f of files) {
+    if (f.role === "reference") continue;
+    const short = f.name.replace(/\.[^.]+$/, "");
+    for (const ns of f.namespaces) {
+      if (internal.has(ns)) continue;
+      if (!external.has(ns)) external.set(ns, nameForNamespace(ns, prefixes) || short);
+    }
+  }
+
+  const moduleNamespace = new Map<string, string>();
+  for (const [ns, name] of internalName) if (!moduleNamespace.has(name)) moduleNamespace.set(name, ns);
+  for (const [ns, name] of external) if (!moduleNamespace.has(name)) moduleNamespace.set(name, ns);
+
+  const cache = new Map<string, { module: string; external: boolean }>();
+  const moduleOf = (iri: string) => {
+    const hit = cache.get(iri);
+    if (hit) return hit;
+    const ns = namespaceOf(iri);
+    let res: { module: string; external: boolean };
+    if (internalName.has(ns)) {
+      res = { module: internalName.get(ns)!, external: false };
+    } else if (external.has(ns)) {
+      res = { module: external.get(ns)!, external: true };
+    } else {
+      const known = WELL_KNOWN_VOCABULARIES.find(([prefix]) => iri.startsWith(prefix));
+      if (known) {
+        res = { module: known[1], external: true };
+        if (!moduleNamespace.has(known[1])) moduleNamespace.set(known[1], known[0]);
+      } else {
+        res = { module: "Other", external: true };
+      }
+    }
+    cache.set(iri, res);
+    return res;
+  };
+  return { moduleOf, moduleNamespace };
+}
+
+function buildReference(projectId: string): BuiltReference {
+  const project = requireProject(projectId);
+  const files = referenceFiles(projectId);
+  if (files.length === 0) {
+    throw new HttpError(
+      409,
+      `The project "${project.name}" has no reference ontology yet — pick one in the Workspace tab.`
+    );
+  }
+  const t0 = Date.now();
+  const store = new oxigraph.Store();
+  const reference = files.find((f) => f.role === "reference")!;
+  const base = reference.ontologyIri ? `${reference.ontologyIri}#` : "http://example.org/reference#";
+  // La référence d'abord, puis ses dépendances (l'ordre de chargement n'a
+  // pas d'incidence sémantique — un store est un ensemble de triples — mais
+  // il fixe l'ordre des résultats SPARQL, donc celui des fiches du chatbot).
+  for (const f of files) {
+    try {
+      loadInto(store, readFileSync(f.path, "utf8"), extOf(f.path), base);
+    } catch (e) {
+      console.warn(`[reference] fichier ignoré (${f.name}): ${(e as Error).message}`);
+    }
+  }
+
+  const prefixes: Record<string, string> = { ...WELL_KNOWN_PREFIXES };
+  for (const f of files) {
+    for (const [p, ns] of Object.entries(f.prefixes)) {
+      if (!(p in prefixes)) prefixes[p] = ns;
+    }
+  }
+  const { moduleOf, moduleNamespace } = buildClassifier(files, prefixes);
+  const q = (sparql: string) => select(store, sparql);
 
   // --- Classes -----------------------------------------------------
   const nodes = new Map<string, GraphNode>();
@@ -261,19 +332,18 @@ export function buildGraph(): void {
     links.push({ source: s, target: o, type: "subclass", label: "subClassOf" });
   }
 
-  // --- Lobes : appartenance via la fermeture subClassOf* ------------
+  // --- Groupes de haut niveau (« lobes ») --------------------------
   const childrenOf = new Map<string, string[]>();
+  const hasParent = new Set<string>();
   for (const l of links) {
+    if (l.type !== "subclass") continue;
     if (!childrenOf.has(l.target)) childrenOf.set(l.target, []);
     childrenOf.get(l.target)!.push(l.source);
+    hasParent.add(l.source);
   }
-  const lobeInfos: LobeInfo[] = [];
-  for (const root of [...nodes.values()].filter(
-    (n) => n.module === "Core" && n.id.endsWith("_Lobe")
-  )) {
-    const lobeId = localName(root.id);
-    const members = new Set<string>([root.id]);
-    const stack = [root.id];
+  const descendantsOf = (root: string): Set<string> => {
+    const members = new Set<string>([root]);
+    const stack = [root];
     while (stack.length > 0) {
       const cur = stack.pop()!;
       for (const child of childrenOf.get(cur) ?? []) {
@@ -283,6 +353,28 @@ export function buildGraph(): void {
         }
       }
     }
+    return members;
+  };
+
+  const allNodes = [...nodes.values()];
+  // Convention `*_Lobe` (Digital Reference) si elle est suivie, sinon les
+  // racines de la hiérarchie interne les plus peuplées.
+  let roots = allNodes.filter((n) => !n.external && /_Lobe$/i.test(localName(n.id)));
+  let groupLabel = "Lobes";
+  if (roots.length < 2) {
+    groupLabel = "Groups";
+    roots = allNodes
+      .filter((n) => !n.external && !hasParent.has(n.id) && (childrenOf.get(n.id)?.length ?? 0) > 0)
+      .map((n) => ({ node: n, size: descendantsOf(n.id).size }))
+      .filter((x) => x.size >= 3)
+      .sort((a, b) => b.size - a.size)
+      .slice(0, 20)
+      .map((x) => x.node);
+  }
+  const lobeInfos: LobeInfo[] = [];
+  for (const root of roots) {
+    const lobeId = localName(root.id);
+    const members = descendantsOf(root.id);
     for (const iri of members) {
       const n = nodes.get(iri);
       if (n && !n.lobes.includes(lobeId)) n.lobes.push(lobeId);
@@ -290,7 +382,7 @@ export function buildGraph(): void {
     lobeInfos.push({
       id: lobeId,
       iri: root.id,
-      label: root.label.replace(/[ _]Lobe$/, ""),
+      label: root.label.replace(/[ _]Lobe$/i, ""),
       comment: root.comment,
       classCount: members.size,
     });
@@ -377,21 +469,28 @@ export function buildGraph(): void {
     nodes.get(l.source)!.degree++;
     nodes.get(l.target)!.degree++;
   }
-
-  fullGraph = { nodes: [...nodes.values()], links };
+  const graph: BuiltGraph = { nodes: allNodes, links };
 
   // --- Meta --------------------------------------------------------
+  // Namespaces internes marginaux (une ou deux classes égarées) : regroupés
+  // sous « Misc » pour ne pas noyer la liste des modules dans le frontend.
+  const rawCounts = new Map<string, number>();
+  for (const n of graph.nodes) rawCounts.set(n.module, (rawCounts.get(n.module) ?? 0) + 1);
+  for (const n of graph.nodes) {
+    if (!n.external && n.module !== "Core" && (rawCounts.get(n.module) ?? 0) < 3)
+      n.module = "Misc";
+  }
+
   const moduleMap = new Map<string, ModuleInfo>();
-  for (const n of fullGraph.nodes) {
+  for (const n of graph.nodes) {
     let m = moduleMap.get(n.module);
     if (!m) {
-      const nsEntry =
-        n.module === "Core"
-          ? PREFIXES["dr"]
-          : PREFIXES[`ecsel-dr-${n.module}`] ??
-            EXTERNAL_MODULES.find(([, name]) => name === n.module)?.[0] ??
-            "";
-      m = { id: n.module, namespace: nsEntry, classCount: 0, external: n.external };
+      m = {
+        id: n.module,
+        namespace: moduleNamespace.get(n.module) ?? "",
+        classCount: 0,
+        external: n.external,
+      };
       moduleMap.set(n.module, m);
     }
     m.classCount++;
@@ -402,53 +501,115 @@ export function buildGraph(): void {
   });
 
   const ontoInfo: Record<string, string> = {};
-  for (const b of q(
-    `SELECT ?p ?o WHERE { <http://www.w3id.org/ecsel-dr> ?p ?o . FILTER(isLiteral(?o)) }`
-  )) {
-    ontoInfo[localName(b.get("p")!.value)] = b.get("o")!.value;
+  if (reference.ontologyIri) {
+    for (const b of q(
+      `SELECT ?p ?o WHERE { <${reference.ontologyIri}> ?p ?o . FILTER(isLiteral(?o)) }`
+    )) {
+      ontoInfo[localName(b.get("p")!.value)] = b.get("o")!.value;
+    }
   }
+  const fallbackTitle = reference.name.replace(/\.[^.]+$/, "");
 
-  meta = {
+  const meta: Meta = {
+    project: { id: project.id, name: project.name },
+    reference: { ontologyId: reference.ontologyId, name: reference.name },
     ontology: {
-      title: ontoInfo["label"] ?? "Digital Reference",
-      description: ontoInfo["description"] ?? "",
+      title: ontoInfo["label"] ?? ontoInfo["title"] ?? fallbackTitle,
+      description: ontoInfo["description"] ?? ontoInfo["comment"] ?? "",
       version: ontoInfo["versionInfo"] ?? "",
       modified: ontoInfo["modified"] ?? "",
       triples: store.size,
     },
     counts: {
-      classes: fullGraph.nodes.length,
+      classes: graph.nodes.length,
       objectProperties: propLabels.size,
       datatypeProperties: datatypePropCount,
     },
     modules,
     lobes: lobeInfos,
-    prefixes: PREFIXES,
-    files: listFiles(),
+    groupLabel,
+    prefixes,
+    files: files.map((f) => ({
+      ontologyId: f.ontologyId,
+      name: f.name,
+      size: f.size,
+      role: f.role,
+    })),
   };
 
+  const prefixEntries = Object.entries(prefixes).sort((a, b) => b[1].length - a[1].length);
+  const shrink = (iri: string): string => {
+    for (const [p, ns] of prefixEntries) {
+      if (iri.startsWith(ns)) return `${p}:${iri.slice(ns.length)}`;
+    }
+    return `<${iri}>`;
+  };
+  const prefixHeader = Object.entries(prefixes)
+    .map(([p, ns]) => `PREFIX ${p}: <${ns}>`)
+    .join("\n");
+
   console.log(
-    `[ontology] ${store.size} triplets, ${fullGraph.nodes.length} classes, ` +
-      `${links.length} arêtes, ${modules.length} modules, ${lobeInfos.length} lobes — construit en ${Date.now() - t0} ms`
+    `[reference] ${project.name}: ${store.size} triplets, ${graph.nodes.length} classes, ` +
+      `${links.length} arêtes, ${modules.length} modules, ${lobeInfos.length} ${groupLabel.toLowerCase()} — ${Date.now() - t0} ms`
   );
+
+  return {
+    projectId,
+    store,
+    graph,
+    meta,
+    prefixes,
+    prefixHeader,
+    files,
+    shrink,
+    moduleOf,
+  };
 }
 
-export function getFullGraph(): BuiltGraph {
-  return fullGraph;
+/* ------------------------------ Cache ------------------------------- */
+/* Les stores oxigraph sont volumineux : on n'en garde que quelques-uns,
+   reconstruits à la demande (et invalidés dès qu'un projet change).     */
+
+const MAX_CACHED = 3;
+const cache = new Map<string, BuiltReference>();
+
+export function getReference(projectId: string): BuiltReference {
+  const hit = cache.get(projectId);
+  if (hit) {
+    // Ré-insertion : la Map garde l'ordre d'insertion = ordre d'éviction.
+    cache.delete(projectId);
+    cache.set(projectId, hit);
+    return hit;
+  }
+  const built = buildReference(projectId);
+  cache.set(projectId, built);
+  while (cache.size > MAX_CACHED) {
+    const oldest = cache.keys().next().value as string | undefined;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+  return built;
 }
 
-export function getMeta(): Meta {
-  if (!meta) throw new Error("Ontology not loaded");
-  return meta;
+export function invalidateReference(projectId: string): void {
+  cache.delete(projectId);
 }
 
-export function getGraph(opts: {
-  modules?: Set<string>;
-  lobes?: Set<string>;
-  edges?: Set<string>;
-}): BuiltGraph {
+onProjectInvalidated(invalidateReference);
+
+/** Vrai si le projet a une référence exploitable (chatbot / mapping / graphe). */
+export function hasReference(projectId: string): boolean {
+  return referenceFiles(projectId).length > 0;
+}
+
+/* --------------------------- Filtrage graphe ------------------------ */
+
+export function filterGraph(
+  ref: BuiltReference,
+  opts: { modules?: Set<string>; lobes?: Set<string>; edges?: Set<string> }
+): BuiltGraph {
   const { modules, lobes, edges } = opts;
-  let nodes = fullGraph.nodes;
+  let nodes = ref.graph.nodes;
   if (modules) nodes = nodes.filter((n) => modules.has(n.module));
   if (lobes) {
     nodes = nodes.filter(
@@ -458,18 +619,13 @@ export function getGraph(opts: {
     );
   }
   const kept = new Set(nodes.map((n) => n.id));
-  const links = fullGraph.links.filter(
-    (l) =>
-      kept.has(l.source) &&
-      kept.has(l.target) &&
-      (!edges || edges.has(l.type))
+  const links = ref.graph.links.filter(
+    (l) => kept.has(l.source) && kept.has(l.target) && (!edges || edges.has(l.type))
   );
   return { nodes, links };
 }
 
-/* ------------------------------------------------------------------ */
-/* SPARQL utilisateur                                                  */
-/* ------------------------------------------------------------------ */
+/* ---------------------------- SPARQL -------------------------------- */
 
 function termToJson(t: Term): Record<string, string> {
   if (t.termType === "NamedNode") return { type: "uri", value: t.value };
@@ -481,22 +637,20 @@ function termToJson(t: Term): Record<string, string> {
   return out;
 }
 
-export function runSparql(query: string): unknown {
-  const result = store.query(query);
+export function runSparql(ref: BuiltReference, query: string): unknown {
+  const result = ref.store.query(query);
 
   if (typeof result === "boolean") {
     return { type: "boolean", boolean: result };
   }
 
   if (Array.isArray(result) && (result.length === 0 || result[0] instanceof Map)) {
-    // SELECT
-    const bindings = (result as Binding[]).map((b) => {
+    const bindings = (result as Map<string, Term>[]).map((b) => {
       const row: Record<string, Record<string, string>> = {};
-      for (const [k, v] of b.entries()) row[k] = termToJson(v as Term);
+      for (const [k, v] of b.entries()) row[k] = termToJson(v);
       return row;
     });
-    const varsFromQuery =
-      [...query.matchAll(/\?([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]);
+    const varsFromQuery = [...query.matchAll(/\?([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]);
     const vars =
       bindings.length > 0
         ? [...new Set(bindings.flatMap((b) => Object.keys(b)))]
@@ -527,10 +681,10 @@ export function runSparql(query: string): unknown {
 }
 
 /* ------------------------------------------------------------------ */
-/* Stub chatbot : recherche lexicale en attendant le GraphRAG          */
+/* Repli lexical quand le chatbot n'est pas configuré                  */
 /* ------------------------------------------------------------------ */
 
-export function chatStub(message: string): string {
+export function chatStub(ref: BuiltReference, message: string): string {
   const words = message
     .toLowerCase()
     .split(/[^a-zà-ÿ0-9]+/i)
@@ -538,7 +692,7 @@ export function chatStub(message: string): string {
 
   const matches: { node: GraphNode; score: number }[] = [];
   if (words.length > 0) {
-    for (const n of fullGraph.nodes) {
+    for (const n of ref.graph.nodes) {
       const hay = `${n.label} ${n.comment ?? ""}`.toLowerCase();
       const score = words.reduce((acc, w) => acc + (hay.includes(w) ? 1 : 0), 0);
       if (score > 0) matches.push({ node: n, score });
@@ -546,14 +700,15 @@ export function chatStub(message: string): string {
     matches.sort((a, b) => b.score - a.score || b.node.degree - a.node.degree);
   }
 
+  const title = ref.meta.ontology.title;
   const lines: string[] = [];
   lines.push(
-    "**⚠️ Demo mode** — the GraphRAG engine is not wired up yet. " +
+    "**⚠️ Demo mode** — the GraphRAG engine is not configured. " +
       "This answer was generated by a simple lexical search over the ontology."
   );
   if (matches.length > 0) {
     lines.push("");
-    lines.push(`Here are the Digital Reference concepts that seem related to your question:`);
+    lines.push(`Here are the ${title} concepts that seem related to your question:`);
     for (const { node } of matches.slice(0, 6)) {
       const desc = node.comment
         ? ` — ${node.comment.slice(0, 180)}${node.comment.length > 180 ? "…" : ""}`
@@ -561,16 +716,10 @@ export function chatStub(message: string): string {
       lines.push(`- **${node.label}** _(module ${node.module})_${desc}`);
     }
     lines.push("");
-    lines.push(
-      "You can explore these concepts in the **Graph** tab."
-    );
+    lines.push("You can explore these concepts in the **Graph** tab.");
   } else {
     lines.push("");
-    lines.push(
-      "I could not find any matching concept in the ontology. " +
-        "Once the GraphRAG engine is connected, I will be able to answer more open questions about the Digital Reference " +
-        "(structure, modules, relations between concepts…)."
-    );
+    lines.push("I could not find any matching concept in the reference ontology.");
   }
   return lines.join("\n");
 }

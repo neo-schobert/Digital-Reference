@@ -6,15 +6,16 @@ import {
   type GraphFocusRequest,
 } from "../bus";
 
-// Cache module : le graphe complet n'est téléchargé qu'une fois, même si
-// l'onglet est démonté/remonté (un seul onglet vit à la fois).
-let graphCache: BuiltGraph | null = null;
+// Caches module : le graphe de référence d'un projet n'est téléchargé
+// qu'une fois, même si l'onglet est démonté/remonté (un seul onglet vit à
+// la fois). Tout est indexé par projet : changer de projet ne mélange rien.
+const graphCache = new Map<string, BuiltGraph>();
 
 // Couches d'ontologies importées (Workspace) affichées dans le graphe :
 // sélection et graphes conservés entre montages de l'onglet.
 type OverlayVersion = "original" | "mapped";
-let savedOverlays: Record<string, OverlayVersion> = {};
-let savedShowDr = true;
+const savedOverlays = new Map<string, Record<string, OverlayVersion>>();
+const savedShowRef = new Map<string, boolean>();
 let savedLayersOpen = true;
 
 // Brouillon du mode Split (export structurel) : conservé entre montages.
@@ -28,7 +29,7 @@ interface SplitDraft {
   hops: number;
   includeExternal: boolean;
 }
-let savedSplit: SplitDraft = {
+const emptySplit = (): SplitDraft => ({
   open: false,
   collapsed: false,
   name: "",
@@ -37,22 +38,24 @@ let savedSplit: SplitDraft = {
   superclasses: true,
   hops: 0,
   includeExternal: false,
-};
+});
+const savedSplit = new Map<string, SplitDraft>();
 const overlayGraphCache = new Map<string, BuiltGraph>();
 import {
   exportSplit,
   fetchGraph,
-  fetchWsGraph,
-  fileUrl,
-  listWsOntologies,
-  type WsOntology,
+  fetchOntologyGraph,
+  listOntologies,
+  ontologyFileUrl,
+  type Project,
+  type ProjectOntology,
 } from "../api";
 import { toCurie } from "../curie";
 import { buildColorMap, NEUTRAL_DARK, NEUTRAL_LIGHT } from "../palette";
 import type { BuiltGraph, GraphLink, GraphNode, Meta } from "../types";
 import NetworkCanvas, { NetworkCanvasHandle } from "../components/NetworkCanvas";
 import NetworkCanvas3D, { NetworkCanvas3DHandle } from "../components/NetworkCanvas3D";
-import SidePanel from "../components/SidePanel";
+import SidePanel, { expandSidePanel } from "../components/SidePanel";
 import { clearPins, pinnedIds, savePins, subscribePins, totalPinCount } from "../pinStore";
 
 type GroupMode = "lobes" | "modules";
@@ -65,12 +68,20 @@ function linkKey(l: GraphLink): string {
 }
 
 interface Props {
+  /** Projet courant : la référence est le graphe de base, les autres
+      ontologies du projet sont des couches optionnelles. */
+  project: Project;
   meta: Meta;
   dark: boolean;
 }
 
-export default function GraphTab({ meta, dark }: Props) {
-  const [groupMode, setGroupMode] = useState<GroupMode>("lobes");
+export default function GraphTab({ project, meta, dark }: Props) {
+  const projectId = project.id;
+  // Une ontologie sans groupes de haut niveau (pas de racines exploitables)
+  // s'affiche d'emblée par module : le mode « groupes » serait vide.
+  const [groupMode, setGroupMode] = useState<GroupMode>(
+    meta.lobes.length > 0 ? "lobes" : "modules"
+  );
   const [viewMode, setViewMode] = useState<ViewMode>("3d");
   const [selectedLobes, setSelectedLobes] = useState<Set<string>>(
     () => new Set([...meta.lobes.map((l) => l.id), NO_LOBE])
@@ -86,15 +97,15 @@ export default function GraphTab({ meta, dark }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedLinkKey, setSelectedLinkKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [wsList, setWsList] = useState<WsOntology[]>([]);
+  const [wsList, setWsList] = useState<ProjectOntology[]>([]);
   const [overlays, setOverlays] = useState<Record<string, OverlayVersion>>(
-    savedOverlays
+    () => savedOverlays.get(projectId) ?? {}
   );
-  const [showDr, setShowDr] = useState(savedShowDr);
+  const [showDr, setShowDr] = useState(() => savedShowRef.get(projectId) ?? true);
   const [layersOpen, setLayersOpen] = useState(savedLayersOpen);
   const [layersFilter, setLayersFilter] = useState("");
   // Couche « sélectionnée » (clic sur son nom) : tout le reste s'estompe.
-  // "__DR__" = le Digital Reference, sinon le nom court d'une ontologie.
+  // "__DR__" = l'ontologie de référence, sinon le nom court d'une ontologie.
   const [focusSource, setFocusSource] = useState<string | null>(null);
 
   useEffect(() => {
@@ -102,10 +113,12 @@ export default function GraphTab({ meta, dark }: Props) {
   }, [layersOpen]);
 
   /* ---- Mode Split : brouillon persistant au niveau module ---- */
-  const [split, setSplit] = useState<SplitDraft>(savedSplit);
+  const [split, setSplit] = useState<SplitDraft>(
+    () => savedSplit.get(projectId) ?? emptySplit()
+  );
   useEffect(() => {
-    savedSplit = split;
-  }, [split]);
+    savedSplit.set(projectId, split);
+  }, [projectId, split]);
   const [splitSearch, setSplitSearch] = useState("");
   const [splitBusy, setSplitBusy] = useState(false);
   const [splitError, setSplitError] = useState<string | null>(null);
@@ -118,8 +131,8 @@ export default function GraphTab({ meta, dark }: Props) {
   // Épinglages : compteur vivant + flash de confirmation du « Save »
   const [pinCount, setPinCount] = useState(() => totalPinCount());
   const [pinsSaved, setPinsSaved] = useState(false);
-  const [pinsBusy, setPinsBusy] = useState(false);
   const [pinsError, setPinsError] = useState<string | null>(null);
+  const splitBoxRef = useRef<HTMLDivElement>(null);
   useEffect(() => subscribePins(() => setPinCount(totalPinCount())), []);
 
 
@@ -128,14 +141,15 @@ export default function GraphTab({ meta, dark }: Props) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    if (graphCache) {
-      setFullGraph(graphCache);
+    const cached = graphCache.get(projectId);
+    if (cached) {
+      setFullGraph(cached);
       setLoading(false);
       return;
     }
-    fetchGraph({})
+    fetchGraph(projectId)
       .then((g) => {
-        graphCache = g;
+        graphCache.set(projectId, g);
         if (!cancelled) setFullGraph(g);
       })
       .catch((e) => console.error(e))
@@ -145,19 +159,22 @@ export default function GraphTab({ meta, dark }: Props) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [projectId]);
 
   /* ---- Couches Workspace : liste + graphes des versions actives ---- */
   useEffect(() => {
-    savedOverlays = overlays;
-  }, [overlays]);
+    savedOverlays.set(projectId, overlays);
+  }, [projectId, overlays]);
   useEffect(() => {
-    savedShowDr = showDr;
-  }, [showDr]);
+    savedShowRef.set(projectId, showDr);
+  }, [projectId, showDr]);
 
   useEffect(() => {
-    listWsOntologies()
-      .then((list) => {
+    // La référence ET ses dépendances SONT déjà le graphe de base : seules
+    // les autres ontologies du projet peuvent être ajoutées en couche.
+    listOntologies(projectId)
+      .then((all) => {
+        const list = all.filter((o) => !o.inReference);
         setWsList(list);
         // purge des sélections d'ontologies supprimées entre-temps
         setOverlays((prev) => {
@@ -171,7 +188,7 @@ export default function GraphTab({ meta, dark }: Props) {
         });
       })
       .catch(() => {});
-  }, []);
+  }, [projectId]);
 
   // Préchargement de TOUTES les couches (les deux versions) dès que la liste
   // est connue : activer/désactiver une couche ensuite n'est qu'une bascule
@@ -189,7 +206,7 @@ export default function GraphTab({ meta, dark }: Props) {
           setOverlayGraphs((prev) => (prev[key] ? prev : { ...prev, [key]: cached }));
           continue;
         }
-        fetchWsGraph(o.id, version)
+        fetchOntologyGraph(projectId, o.id, version)
           .then((g) => {
             overlayGraphCache.set(key, g);
             if (!cancelled) setOverlayGraphs((prev) => ({ ...prev, [key]: g }));
@@ -200,9 +217,9 @@ export default function GraphTab({ meta, dark }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [wsList]);
+  }, [projectId, wsList]);
 
-  /* ---- Graphe combiné : superset stable DR + TOUTES les couches ----
+  /* ---- Graphe combiné : superset stable référence + TOUTES les couches ----
      Il ne change qu'au chargement des données, jamais lors des toggles :
      les canvas gardent donc leurs objets et leurs positions. ---- */
   const combined = useMemo(() => {
@@ -457,7 +474,7 @@ export default function GraphTab({ meta, dark }: Props) {
     setSplitBusy(true);
     setSplitError(null);
     try {
-      const blob = await exportSplit({
+      const blob = await exportSplit(projectId, {
         name: split.name,
         seeds: split.seeds,
         subclasses: split.subclasses,
@@ -469,7 +486,7 @@ export default function GraphTab({ meta, dark }: Props) {
         split.name
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "") || "dr-split";
+          .replace(/^-+|-+$/g, "") || "ontology-split";
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -481,7 +498,7 @@ export default function GraphTab({ meta, dark }: Props) {
     } finally {
       setSplitBusy(false);
     }
-  }, [split]);
+  }, [projectId, split]);
 
   /* ---- Révélation progressive : le canvas reçoit les nœuds par lots ----
      Le premier lot (les plus connectés = le squelette) s'affiche
@@ -521,7 +538,7 @@ export default function GraphTab({ meta, dark }: Props) {
   const graph = useMemo(() => {
     const keepNode = (n: GraphNode) => {
       // Les nœuds des couches importées suivent leur sélecteur dédié, pas les
-      // filtres lobes/modules/seuil du DR.
+      // filtres groupes/modules/seuil de la référence.
       if (n.source) return (modeBySource.get(n.source) ?? "off") !== "off";
       if (!showDr) return false;
       return groupMode === "lobes"
@@ -651,48 +668,45 @@ export default function GraphTab({ meta, dark }: Props) {
   }, [combined]);
 
   /**
-   * Exporte les seules classes épinglées et les axiomes qui les relient entre
-   * elles : même moteur que le Split, avec les épingles pour graines et aucune
-   * règle d'expansion — donc rien d'autre que la sélection faite à la main.
+   * Ouvre le Split amorcé par les épingles : les classes épinglées deviennent
+   * les graines, et l'on peut ensuite ajuster l'expansion avant d'exporter.
+   * Un brouillon vierge reprend l'ancienne sémantique de l'export « pins » —
+   * exactement les classes épinglées, sans expansion.
    *
    * Les classes issues d'une ontologie importée sont écartées : l'export relit
-   * le store du Digital Reference, qui ne les contient pas.
+   * le store de la référence du projet, qui ne les contient pas.
    */
-  const doExportPins = useCallback(async () => {
-    const pinned = pinnedIds().filter((id) => !nodeById.get(id)?.source);
-    const skipped = pinnedIds().length - pinned.length;
-    if (pinned.length === 0) {
-      setPinsError("No pinned Digital Reference class to export.");
+  const splitFromPins = useCallback(() => {
+    const ids = pinnedIds();
+    const seeds = ids.filter((id) => !nodeById.get(id)?.source);
+    const skipped = ids.length - seeds.length;
+    if (seeds.length === 0) {
+      setPinsError(`No pinned ${meta.ontology.title} class to split.`);
       return;
     }
-    setPinsBusy(true);
-    setPinsError(null);
-    try {
-      const blob = await exportSplit({
-        name: "pinned classes",
-        seeds: pinned,
-        subclasses: false,
-        superclasses: false,
-        hops: 0,
-        includeExternal: true,
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "pinned-classes.ttl";
-      a.click();
-      URL.revokeObjectURL(url);
-      setPinsError(
-        skipped > 0
-          ? `${skipped} imported class${skipped > 1 ? "es" : ""} skipped — only Digital Reference classes can be exported.`
-          : null
-      );
-    } catch (e) {
-      setPinsError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setPinsBusy(false);
-    }
-  }, [nodeById]);
+    setSplit((sp) => {
+      const fresh = sp.seeds.length === 0;
+      return {
+        ...sp,
+        open: true,
+        collapsed: false,
+        seeds: [...new Set([...sp.seeds, ...seeds])],
+        name: sp.name.trim() === "" ? "pinned classes" : sp.name,
+        subclasses: fresh ? false : sp.subclasses,
+        superclasses: fresh ? false : sp.superclasses,
+        hops: fresh ? 0 : sp.hops,
+      };
+    });
+    setPinsError(
+      skipped > 0
+        ? `${skipped} imported class${skipped > 1 ? "es" : ""} skipped — only ${meta.ontology.title} classes can be split.`
+        : null
+    );
+    expandSidePanel("graph-filters");
+    requestAnimationFrame(() =>
+      splitBoxRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+    );
+  }, [meta, nodeById]);
 
   const selectedNode = selectedId ? (nodeById.get(selectedId) ?? null) : null;
   const selectedLink = useMemo(
@@ -831,8 +845,9 @@ export default function GraphTab({ meta, dark }: Props) {
             <button
               className={groupMode === "lobes" ? "active" : ""}
               onClick={() => setGroupMode("lobes")}
+              title={`Group classes by the ${meta.groupLabel.toLowerCase()} of ${meta.ontology.title}`}
             >
-              Lobes
+              {meta.groupLabel}
             </button>
             <button
               className={groupMode === "modules" ? "active" : ""}
@@ -844,7 +859,7 @@ export default function GraphTab({ meta, dark }: Props) {
         </div>
 
         <div>
-          <h3>{groupMode === "lobes" ? "Lobes" : "Modules (namespaces)"}</h3>
+          <h3>{groupMode === "lobes" ? meta.groupLabel : "Modules (namespaces)"}</h3>
           <div className="group-list">
             {groups.map((g) => (
               <label key={g.id} className="group-row" title={g.title ?? undefined}>
@@ -905,9 +920,14 @@ export default function GraphTab({ meta, dark }: Props) {
           </div>
           <div style={{ marginTop: 6 }}>
             {meta.files.map((f) => (
-              <div key={f.name}>
-                <a href={fileUrl(f.name)} download>
-                  ⬇ {f.name}
+              <div key={f.ontologyId}>
+                <a
+                  href={ontologyFileUrl(projectId, f.ontologyId)}
+                  download
+                  title={f.role === "reference" ? "Reference ontology" : "Dependency"}
+                >
+                  ⬇ {f.role === "reference" ? "★ " : ""}
+                  {f.name}
                 </a>{" "}
                 <span style={{ color: "var(--text-muted)" }}>
                   ({Math.round(f.size / 1024).toLocaleString("en-US")} KB)
@@ -990,13 +1010,13 @@ export default function GraphTab({ meta, dark }: Props) {
             />
             <span
               className={`layers-name clickable${focusSource === "__DR__" ? " focused" : ""}`}
-              title="Click to highlight the Digital Reference (dims everything else)"
+              title={`Click to highlight ${meta.ontology.title} (dims everything else)`}
               onClick={() => {
                 if (!showDr) setShowDr(true);
                 toggleFocusSource("__DR__");
               }}
             >
-              Digital Reference
+              ★ {meta.ontology.title}
             </span>
           </div>
           {wsList.length > 6 && (
@@ -1055,7 +1075,7 @@ export default function GraphTab({ meta, dark }: Props) {
                   </button>
                   <button
                     className={mode === "original" ? "active" : ""}
-                    title="Show the imported ontology as-is (disconnected from the DR)"
+                    title="Show the imported ontology as-is (unlinked from the reference)"
                     onClick={() => setMode("original")}
                   >
                     raw
@@ -1065,8 +1085,8 @@ export default function GraphTab({ meta, dark }: Props) {
                     disabled={!o.hasMapping}
                     title={
                       o.hasMapping
-                        ? "Show the DR-linked version (mapping axioms as edges)"
-                        : "Run “Map to DR” in the Workspace tab first"
+                        ? "Show the linked version (mapping axioms as edges)"
+                        : "Run “Map to reference” in the Workspace tab first"
                     }
                     onClick={() => setMode("mapped")}
                   >
@@ -1089,7 +1109,7 @@ export default function GraphTab({ meta, dark }: Props) {
           </button>
         )}
         {split.open && (
-          <div className="split-box">
+          <div className="split-box" ref={splitBoxRef}>
             <div className="split-head">
               <button
                 className="layers-title layers-toggle"
@@ -1276,11 +1296,10 @@ export default function GraphTab({ meta, dark }: Props) {
               {pinsSaved ? "Saved ✓" : "Save"}
             </button>
             <button
-              disabled={pinsBusy}
-              onClick={() => void doExportPins()}
-              title="Download just these classes and the axioms between them, as a standalone .ttl"
+              onClick={splitFromPins}
+              title="Open the Split panel with these pinned classes as seed classes"
             >
-              {pinsBusy ? "Exporting…" : "⬇ Export"}
+              ✂ Split
             </button>
             <button
               onClick={() => {

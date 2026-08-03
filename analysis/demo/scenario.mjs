@@ -66,7 +66,8 @@ export const beats = [
     fr: "On importe Factory Logistics : un petit modèle de logistique d'usine, treize classes.",
     en: "We import Factory Logistics — a small factory-logistics model, thirteen classes.",
     run: async (h) => {
-      if (h.fast) await h.page.locator(".conv-item").first().click();
+      if (h.fast)
+        await h.page.locator('.ws-onto-card:has-text("factory-logistics")').click();
       else await h.importOntology();
       await h.pause(1200);
     },
@@ -77,7 +78,7 @@ export const beats = [
     en: "Comparing to the Digital Reference scores every class on three facets: lexical, structural and semantic.",
     run: async (h) => {
       if (h.fast) await h.wsTab("Comparison");
-      else await h.wsAction("Compare to DR", ".ws-table");
+      else await h.wsAction("Compare", ".ws-table");
       await h.pause(1200);
     },
   },
@@ -96,7 +97,7 @@ export const beats = [
       // lancé sans attendre : la phrase suivante se joue pendant l'alignement
       else
         h.ctx.mapping = h
-          .wsAction("Map to DR", '.ws-tab:has-text("Mapping")', 300000)
+          .wsAction("Map to reference", '.ws-tab:has-text("Mapping")', 300000)
           .catch((e) => console.warn(`!! alignement échoué : ${e.message}`));
       await h.pause(1500);
     },
