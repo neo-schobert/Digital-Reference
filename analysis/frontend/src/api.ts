@@ -5,6 +5,31 @@ import { apiHeaders, apiUrl } from "./settings";
    de référence + les ontologies importées qu'on lui compare. */
 
 const P = (projectId: string) => `/api/projects/${encodeURIComponent(projectId)}`;
+const LEGACY_PROJECT_ID = "legacy-default";
+
+type BackendMode = "unknown" | "projects" | "legacy";
+let backendMode: BackendMode = "unknown";
+
+async function detectBackendMode(): Promise<BackendMode> {
+  if (backendMode !== "unknown") return backendMode;
+  const target = apiUrl("/api/projects");
+  try {
+    const res = await fetch(target, { headers: apiHeaders(target) });
+    if (res.status === 404) {
+      backendMode = "legacy";
+      return backendMode;
+    }
+    backendMode = "projects";
+    return backendMode;
+  } catch {
+    // Keep unknown so normal requests surface the real network error.
+    return backendMode;
+  }
+}
+
+function isLegacyMode(projectId?: string): boolean {
+  return backendMode === "legacy" || projectId === LEGACY_PROJECT_ID;
+}
 
 async function readError(res: Response): Promise<string> {
   try {
@@ -54,10 +79,40 @@ export interface Project {
 }
 
 export function listProjects(): Promise<Project[]> {
-  return getJson<Project[]>("/api/projects");
+  return detectBackendMode().then(async (mode) => {
+    if (mode === "legacy") {
+      return [
+        {
+          id: LEGACY_PROJECT_ID,
+          name: "Default Project",
+          description: "Legacy backend compatibility mode",
+          createdAt: 0,
+          referenceId: null,
+          referenceName: "Digital Reference",
+          referenceLocked: false,
+          ontologyCount: 0,
+          chatCount: 0,
+        },
+      ];
+    }
+    return getJson<Project[]>("/api/projects");
+  });
 }
 
 export function createProject(name: string, description = ""): Promise<Project> {
+  if (isLegacyMode()) {
+    return Promise.resolve({
+      id: LEGACY_PROJECT_ID,
+      name: name || "Default Project",
+      description,
+      createdAt: Date.now(),
+      referenceId: null,
+      referenceName: "Digital Reference",
+      referenceLocked: false,
+      ontologyCount: 0,
+      chatCount: 0,
+    });
+  }
   return sendJson<Project>("/api/projects", "POST", {
     id: crypto.randomUUID(),
     name,
@@ -69,16 +124,31 @@ export function updateProject(
   id: string,
   patch: { name?: string; description?: string; referenceId?: string | null }
 ): Promise<Project> {
+  if (isLegacyMode(id)) {
+    return Promise.resolve({
+      id: LEGACY_PROJECT_ID,
+      name: patch.name ?? "Default Project",
+      description: patch.description ?? "Legacy backend compatibility mode",
+      createdAt: 0,
+      referenceId: null,
+      referenceName: "Digital Reference",
+      referenceLocked: false,
+      ontologyCount: 0,
+      chatCount: 0,
+    });
+  }
   return sendJson<Project>(P(id), "PATCH", patch);
 }
 
 export function deleteProject(id: string): Promise<{ ok: boolean }> {
+  if (isLegacyMode(id)) return Promise.resolve({ ok: true });
   return sendJson<{ ok: boolean }>(P(id), "DELETE");
 }
 
 /* ------------------ Référence : meta, graphe, SPARQL ----------------- */
 
 export function fetchMeta(projectId: string): Promise<Meta> {
+  if (isLegacyMode(projectId)) return getJson<Meta>("/api/meta");
   return getJson<Meta>(`${P(projectId)}/meta`);
 }
 
@@ -90,10 +160,12 @@ export function fetchGraph(
   if (opts.modules) params.set("modules", opts.modules.join(","));
   if (opts.lobes) params.set("lobes", opts.lobes.join(","));
   if (opts.edges) params.set("edges", opts.edges.join(","));
+  if (isLegacyMode(projectId)) return getJson<BuiltGraph>(`/api/graph?${params.toString()}`);
   return getJson<BuiltGraph>(`${P(projectId)}/graph?${params.toString()}`);
 }
 
 export function runSparql(projectId: string, query: string): Promise<SparqlResult> {
+  if (isLegacyMode(projectId)) return sendJson<SparqlResult>("/api/sparql", "POST", { query });
   return sendJson<SparqlResult>(`${P(projectId)}/sparql`, "POST", { query });
 }
 
@@ -121,6 +193,11 @@ export interface ProjectOntology {
 }
 
 export function listOntologies(projectId: string): Promise<ProjectOntology[]> {
+  if (isLegacyMode(projectId)) {
+    return getJson<ProjectOntology[]>("/api/workspace/ontologies").then((list) =>
+      list.map((o) => ({ ...o, projectId: LEGACY_PROJECT_ID, deps: [], isReference: false, inReference: false, namespaces: [] }))
+    );
+  }
   return getJson<ProjectOntology[]>(`${P(projectId)}/ontologies`);
 }
 
@@ -130,6 +207,13 @@ export function importOntology(
   content: string,
   deps: string[] = []
 ): Promise<ProjectOntology> {
+  if (isLegacyMode(projectId)) {
+    return sendJson<ProjectOntology>("/api/workspace/ontologies", "POST", {
+      id: crypto.randomUUID(),
+      name,
+      content,
+    }).then((o) => ({ ...o, projectId: LEGACY_PROJECT_ID, deps: [], isReference: false, inReference: false, namespaces: [] }));
+  }
   return sendJson<ProjectOntology>(`${P(projectId)}/ontologies`, "POST", {
     id: crypto.randomUUID(),
     name,
@@ -143,6 +227,13 @@ export function patchOntology(
   id: string,
   patch: { deps?: string[]; name?: string }
 ): Promise<ProjectOntology> {
+  if (isLegacyMode(projectId)) {
+    return listOntologies(projectId).then((list) => {
+      const current = list.find((x) => x.id === id);
+      if (!current) throw new Error("Unknown ontology");
+      return { ...current, name: patch.name ?? current.name };
+    });
+  }
   return sendJson<ProjectOntology>(
     `${P(projectId)}/ontologies/${encodeURIComponent(id)}`,
     "PATCH",
@@ -151,6 +242,9 @@ export function patchOntology(
 }
 
 export function deleteOntology(projectId: string, id: string): Promise<{ ok: boolean }> {
+  if (isLegacyMode(projectId)) {
+    return sendJson<{ ok: boolean }>(`/api/workspace/ontologies/${encodeURIComponent(id)}`, "DELETE");
+  }
   return sendJson<{ ok: boolean }>(
     `${P(projectId)}/ontologies/${encodeURIComponent(id)}`,
     "DELETE"
@@ -211,10 +305,14 @@ export function loadResults(
   projectId: string,
   id: string
 ): Promise<{ compare: CompareReport | null; mapping: MappingReport | null }> {
+  if (isLegacyMode(projectId)) return getJson(`/api/workspace/ontologies/${encodeURIComponent(id)}/results`);
   return getJson(`${P(projectId)}/ontologies/${encodeURIComponent(id)}/results`);
 }
 
 export function compareOntology(projectId: string, id: string): Promise<CompareReport> {
+  if (isLegacyMode(projectId)) {
+    return sendJson<CompareReport>(`/api/workspace/ontologies/${encodeURIComponent(id)}/compare`, "POST");
+  }
   return sendJson<CompareReport>(
     `${P(projectId)}/ontologies/${encodeURIComponent(id)}/compare`,
     "POST"
@@ -222,6 +320,9 @@ export function compareOntology(projectId: string, id: string): Promise<CompareR
 }
 
 export function mapOntology(projectId: string, id: string): Promise<MappingReport> {
+  if (isLegacyMode(projectId)) {
+    return sendJson<MappingReport>(`/api/workspace/ontologies/${encodeURIComponent(id)}/map`, "POST");
+  }
   return sendJson<MappingReport>(
     `${P(projectId)}/ontologies/${encodeURIComponent(id)}/map`,
     "POST"
@@ -233,20 +334,34 @@ export function fetchOntologyGraph(
   id: string,
   version: "original" | "mapped"
 ): Promise<BuiltGraph> {
+  if (isLegacyMode(projectId)) {
+    return getJson<BuiltGraph>(
+      `/api/workspace/ontologies/${encodeURIComponent(id)}/graph?version=${version}`
+    );
+  }
   return getJson<BuiltGraph>(
     `${P(projectId)}/ontologies/${encodeURIComponent(id)}/graph?version=${version}`
   );
 }
 
 export function mappedTtlUrl(projectId: string, id: string): string {
+  if (isLegacyMode(projectId)) {
+    return apiUrl(`/api/workspace/ontologies/${encodeURIComponent(id)}/mapped.ttl`);
+  }
   return apiUrl(`${P(projectId)}/ontologies/${encodeURIComponent(id)}/mapped.ttl`);
 }
 
 export function sssomTsvUrl(projectId: string, id: string): string {
+  if (isLegacyMode(projectId)) {
+    return apiUrl(`/api/workspace/ontologies/${encodeURIComponent(id)}/mappings.sssom.tsv`);
+  }
   return apiUrl(`${P(projectId)}/ontologies/${encodeURIComponent(id)}/mappings.sssom.tsv`);
 }
 
 export function ontologyFileUrl(projectId: string, id: string): string {
+  if (isLegacyMode(projectId)) {
+    return apiUrl(`/api/workspace/ontologies/${encodeURIComponent(id)}/mapped.ttl`);
+  }
   return apiUrl(`${P(projectId)}/ontologies/${encodeURIComponent(id)}/source`);
 }
 
@@ -262,6 +377,12 @@ export async function sendChat(
   messages: ChatMessage[],
   context?: ChatContext
 ): Promise<ChatReply> {
+  if (isLegacyMode(projectId)) {
+    return sendJson<ChatReply>("/api/chat", "POST", {
+      messages: messages.map(({ role, content }) => ({ role, content })),
+      context,
+    });
+  }
   return sendJson<ChatReply>(`${P(projectId)}/chat`, "POST", {
     // L'historique envoyé ne garde que role/content (citations = décor local)
     messages: messages.map(({ role, content }) => ({ role, content })),
@@ -279,6 +400,47 @@ export async function streamChat(
   onEvent: (ev: Record<string, unknown>) => void,
   context?: ChatContext
 ): Promise<ChatReply> {
+  if (isLegacyMode(projectId)) {
+    const targetLegacy = apiUrl(`/api/chat/stream`);
+    const resLegacy = await fetch(targetLegacy, {
+      method: "POST",
+      headers: apiHeaders(targetLegacy, { "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        messages: messages.map(({ role, content }) => ({ role, content })),
+        context,
+      }),
+    });
+    if (!resLegacy.ok || !resLegacy.body) throw new Error(await readError(resLegacy));
+    const readerLegacy = resLegacy.body.getReader();
+    const decoderLegacy = new TextDecoder();
+    let bufferLegacy = "";
+    let finalLegacy: ChatReply | null = null;
+    let errorLegacy: string | null = null;
+    for (;;) {
+      const { done, value } = await readerLegacy.read();
+      if (done) break;
+      bufferLegacy += decoderLegacy.decode(value, { stream: true });
+      let nl;
+      while ((nl = bufferLegacy.indexOf("\n")) >= 0) {
+        const line = bufferLegacy.slice(0, nl).trim();
+        bufferLegacy = bufferLegacy.slice(nl + 1);
+        if (!line) continue;
+        let ev: Record<string, unknown>;
+        try {
+          ev = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (ev.type === "answer") finalLegacy = ev as unknown as ChatReply;
+        else if (ev.type === "error") errorLegacy = String(ev.error);
+        else onEvent(ev);
+      }
+    }
+    if (errorLegacy) throw new Error(errorLegacy);
+    if (!finalLegacy) throw new Error("Stream ended without an answer");
+    return finalLegacy;
+  }
+
   const target = apiUrl(`${P(projectId)}/chat/stream`);
   const res = await fetch(target, {
     method: "POST",
@@ -331,6 +493,11 @@ export interface ChatSummary {
 }
 
 export function listChats(projectId: string): Promise<ChatSummary[]> {
+  if (isLegacyMode(projectId)) {
+    return getJson<ChatSummary[]>(`/api/chats`).then((list) =>
+      list.map((c) => ({ ...c, projectId: LEGACY_PROJECT_ID }))
+    );
+  }
   return getJson<ChatSummary[]>(`${P(projectId)}/chats`);
 }
 
@@ -338,6 +505,12 @@ export function loadChat(
   projectId: string,
   id: string
 ): Promise<ChatSummary & { messages: ChatMessage[] }> {
+  if (isLegacyMode(projectId)) {
+    return getJson<ChatSummary & { messages: ChatMessage[] }>(`/api/chats/${encodeURIComponent(id)}`).then((c) => ({
+      ...c,
+      projectId: LEGACY_PROJECT_ID,
+    }));
+  }
   return getJson(`${P(projectId)}/chats/${encodeURIComponent(id)}`);
 }
 
@@ -346,14 +519,26 @@ export async function saveChat(
   id: string,
   messages: ChatMessage[]
 ): Promise<void> {
+  if (isLegacyMode(projectId)) {
+    await sendJson(`/api/chats/${encodeURIComponent(id)}`, "PUT", { messages });
+    return;
+  }
   await sendJson(`${P(projectId)}/chats/${encodeURIComponent(id)}`, "PUT", { messages });
 }
 
 export async function deleteChat(projectId: string, id: string): Promise<void> {
+  if (isLegacyMode(projectId)) {
+    await sendJson(`/api/chats/${encodeURIComponent(id)}`, "DELETE");
+    return;
+  }
   await sendJson(`${P(projectId)}/chats/${encodeURIComponent(id)}`, "DELETE");
 }
 
 export async function clearChats(projectId: string): Promise<void> {
+  if (isLegacyMode(projectId)) {
+    await sendJson(`/api/chats`, "DELETE");
+    return;
+  }
   await sendJson(`${P(projectId)}/chats`, "DELETE");
 }
 
@@ -372,6 +557,17 @@ export async function exportSplit(
   projectId: string,
   req: SplitExportRequest
 ): Promise<Blob> {
+  if (isLegacyMode(projectId)) {
+    const targetLegacy = apiUrl(`/api/split/export`);
+    const resLegacy = await fetch(targetLegacy, {
+      method: "POST",
+      headers: apiHeaders(targetLegacy, { "Content-Type": "application/json" }),
+      body: JSON.stringify(req),
+    });
+    if (!resLegacy.ok) throw new Error(await readError(resLegacy));
+    return resLegacy.blob();
+  }
+
   const target = apiUrl(`${P(projectId)}/split/export`);
   const res = await fetch(target, {
     method: "POST",
