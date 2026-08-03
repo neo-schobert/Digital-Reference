@@ -1,18 +1,37 @@
-import { mkdirSync, readFileSync, unlinkSync, writeFileSync, existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import oxigraph from "oxigraph";
-import { db, DATA_DIR } from "./chatstore.js";
+import {
+  HttpError,
+  ProjectOntology,
+  VALID_ID,
+  WS_DIR,
+  getOntology,
+  getResult,
+  onProjectInvalidated,
+  ontologySource,
+  requireProject,
+  saveResult,
+} from "./projects.js";
 import {
   Card,
   ExtraIndex,
   chatConfig,
   cosine,
-  drIndex,
   embedTexts,
   llmCall,
+  referenceIndex,
   tokenize,
 } from "./chat.js";
-import { getFullGraph, store as drStore } from "./ontology.js";
+import { getReference } from "./ontology.js";
+import {
+  OntoClass,
+  dumpTurtle,
+  loadStore,
+  localName,
+  parseClasses,
+  select,
+  type Store,
+} from "./rdf.js";
 import {
   Bm25Index,
   EntityProfile,
@@ -23,338 +42,65 @@ import {
 } from "./similarity.js";
 
 /* ------------------------------------------------------------------ */
-/* Workspace : ontologies importées par l'utilisateur                  */
-/*  - persistance : fichiers dans analysis/.data/workspace/ + SQLite   */
-/*  - comparaison au Digital Reference : similarité multi-facettes     */
-/*    (lexicale + structurelle + sémantique, voir similarity.ts)       */
+/* Comparaison et mapping d'une ontologie importée vers la RÉFÉRENCE   */
+/* de son projet.                                                      */
+/*  - comparaison : similarité multi-facettes (lexicale + structurelle */
+/*    + sémantique, voir similarity.ts)                                */
 /*  - mapping : nouvelle ontologie = copie de l'importée + axiomes     */
-/*    SKOS vers le DR (exactMatch / broadMatch / closeMatch) réifiés   */
-/*    avec leurs scores (vocabulaire SSSOM) + export .sssom.tsv.       */
-/*    Le DR n'est JAMAIS modifié.                                      */
+/*    SKOS vers la référence (exactMatch / broadMatch / closeMatch)    */
+/*    réifiés avec leurs scores (vocabulaire SSSOM) + export SSSOM.    */
+/*    La référence n'est JAMAIS modifiée.                              */
 /* ------------------------------------------------------------------ */
 
-const WS_DIR = join(DATA_DIR, "workspace");
-mkdirSync(WS_DIR, { recursive: true });
+const MAX_CLASSES = 300;
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS ws_ontologies (
-    id          TEXT PRIMARY KEY,
-    name        TEXT NOT NULL,
-    filename    TEXT NOT NULL,
-    created_at  INTEGER NOT NULL,
-    triples     INTEGER NOT NULL,
-    classes     INTEGER NOT NULL,
-    properties  INTEGER NOT NULL
-  );
-  CREATE TABLE IF NOT EXISTS ws_results (
-    onto_id     TEXT NOT NULL,
-    kind        TEXT NOT NULL,
-    created_at  INTEGER NOT NULL,
-    data        TEXT NOT NULL,
-    PRIMARY KEY (onto_id, kind)
-  );
-`);
-
-const VALID_ID = /^[A-Za-z0-9-]{8,64}$/;
-
-const FORMAT_BY_EXT: Record<string, string> = {
-  ttl: "text/turtle",
-  n3: "text/turtle",
-  nt: "application/n-triples",
-  rdf: "application/rdf+xml",
-  owl: "application/rdf+xml",
-  xml: "application/rdf+xml",
-};
-
-/* --------------------- Parsing d'une ontologie --------------------- */
-
-interface WsClass {
-  iri: string;
-  label: string;
-  comment?: string;
-  supers: string[];
-  /** labels alternatifs (skos:altLabel / prefLabel) — métrique synonymes */
-  alts: string[];
-  /** labels des voisins directs (hiérarchie + propriétés objet) */
-  neighbors: string[];
-  /** degré dans l'ontologie importée (centralité → importance score) */
-  degree: number;
-  text: string; // fiche verbalisée (embedding + prompts)
+/**
+ * Ontologie du projet à aligner. Refusée si elle fait partie de la
+ * référence : la référence elle-même, mais aussi ses dépendances, qui sont
+ * chargées avec elle — les comparer à la référence reviendrait à les
+ * comparer à elles-mêmes.
+ */
+function loadTarget(projectId: string, ontologyId: string): ProjectOntology {
+  requireProject(projectId);
+  const onto = getOntology(ontologyId);
+  if (!onto || onto.projectId !== projectId)
+    throw new HttpError(404, "Unknown ontology in this project");
+  if (onto.isReference)
+    throw new HttpError(
+      400,
+      "This ontology IS the project reference — import another one to compare or map it."
+    );
+  if (onto.inReference)
+    throw new HttpError(
+      400,
+      "This ontology is a dependency of the project reference: it is already " +
+        "part of it. Remove it from the reference dependencies first, or " +
+        "import another ontology to align."
+    );
+  return onto;
 }
 
-function localName(iri: string): string {
-  const idx = Math.max(iri.lastIndexOf("#"), iri.lastIndexOf("/"));
-  return idx >= 0 ? iri.slice(idx + 1) : iri;
-}
-
-function loadStore(content: string, ext: string): InstanceType<typeof oxigraph.Store> {
-  const store = new oxigraph.Store();
-  const format = FORMAT_BY_EXT[ext] ?? "text/turtle";
-  const base = "http://example.org/imported#";
-  try {
-    store.load(content, { format, base_iri: base });
-  } catch (e) {
-    try {
-      (store.load as unknown as (d: string, f: string, b: string) => void)(
-        content,
-        format,
-        base
-      );
-    } catch {
-      throw e;
-    }
-  }
-  return store;
-}
-
-function parseClasses(store: InstanceType<typeof oxigraph.Store>): {
-  classes: WsClass[];
-  propertyCount: number;
-} {
-  type Term = { termType: string; value: string; language?: string };
-  type Binding = Map<string, Term>;
-  const q = (sparql: string) =>
-    store.query(
-      `PREFIX owl: <http://www.w3.org/2002/07/owl#>
-       PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-       PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-       PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-       ${sparql}`
-    ) as Binding[];
-
-  const byIri = new Map<string, WsClass>();
-  for (const b of q(
-    `SELECT ?c ?label ?comment WHERE {
-       { ?c a owl:Class } UNION { ?c a rdfs:Class }
-       FILTER(isIRI(?c))
-       OPTIONAL { ?c rdfs:label ?label }
-       OPTIONAL { { ?c rdfs:comment ?comment } UNION { ?c skos:definition ?comment } }
-     }`
-  )) {
-    const iri = b.get("c")!.value;
-    let c = byIri.get(iri);
-    if (!c) {
-      c = { iri, label: localName(iri), supers: [], alts: [], neighbors: [], degree: 0, text: "" };
-      byIri.set(iri, c);
-    }
-    const label = b.get("label");
-    if (label && (c.label === localName(iri) || label.language === "en"))
-      c.label = label.value;
-    const comment = b.get("comment");
-    if (comment && (!c.comment || comment.language === "en"))
-      c.comment = comment.value;
-  }
-  // Labels alternatifs (synonymes déclarés)
-  for (const b of q(
-    `SELECT ?c ?alt WHERE {
-       { ?c skos:altLabel ?alt } UNION { ?c skos:prefLabel ?alt }
-     }`
-  )) {
-    const c = byIri.get(b.get("c")!.value);
-    const alt = b.get("alt")?.value;
-    if (c && alt && alt !== c.label && c.alts.length < 8 && !c.alts.includes(alt))
-      c.alts.push(alt);
-  }
-  const addNeighbor = (c: WsClass, label: string) => {
-    c.degree++;
-    if (c.neighbors.length < 24 && !c.neighbors.includes(label))
-      c.neighbors.push(label);
-  };
-  for (const b of q(
-    `SELECT ?s ?o WHERE { ?s rdfs:subClassOf ?o . FILTER(isIRI(?s) && isIRI(?o)) }`
-  )) {
-    const c = byIri.get(b.get("s")!.value);
-    const o = byIri.get(b.get("o")!.value);
-    if (!c || !o) continue;
-    if (c.supers.length < 6) c.supers.push(o.label);
-    addNeighbor(c, o.label);
-    addNeighbor(o, c.label);
-  }
-  // Propriétés objet : domain -> range = voisinage structurel
-  for (const b of q(
-    `SELECT ?d ?r WHERE {
-       ?p a owl:ObjectProperty .
-       ?p rdfs:domain ?d . FILTER(isIRI(?d))
-       ?p rdfs:range ?r . FILTER(isIRI(?r))
-     }`
-  )) {
-    const dc = byIri.get(b.get("d")!.value);
-    const rc = byIri.get(b.get("r")!.value);
-    if (!dc || !rc || dc === rc) continue;
-    addNeighbor(dc, rc.label);
-    addNeighbor(rc, dc.label);
-  }
-  let propertyCount = 0;
-  for (const _ of q(
-    `SELECT DISTINCT ?p WHERE {
-       { ?p a owl:ObjectProperty } UNION { ?p a owl:DatatypeProperty } UNION { ?p a rdf:Property }
-       FILTER(isIRI(?p))
-     }`
-  ))
-    propertyCount++;
-
-  const classes = [...byIri.values()].map((c) => {
-    const parts = [`Class: ${c.label} (<${c.iri}>)`];
-    if (c.comment) parts.push(`Definition: ${c.comment}`);
-    if (c.supers.length) parts.push(`Superclasses: ${c.supers.join(", ")}`);
-    c.text = parts.join("\n");
-    return c;
-  });
-  return { classes, propertyCount };
-}
-
-/* ------------------------------ CRUD ------------------------------- */
-
-export interface WsOntology {
-  id: string;
-  name: string;
-  createdAt: number;
-  triples: number;
-  classes: number;
-  properties: number;
-  hasCompare: boolean;
-  hasMapping: boolean;
-  /** Score de liaison au DR si un mapping existe (0-100) */
-  linkScore?: number;
-  /** Similarité moyenne au DR si une comparaison existe (0-100) */
-  similarityScore?: number;
-}
-
-function resultExists(id: string, kind: string): boolean {
-  return !!db
-    .prepare(`SELECT 1 FROM ws_results WHERE onto_id = ? AND kind = ?`)
-    .get(id, kind);
-}
-
-export function listOntologies(): WsOntology[] {
-  const rows = db
-    .prepare(`SELECT * FROM ws_ontologies ORDER BY created_at DESC`)
-    .all() as any[];
-  return rows.map((r) => {
-    const mapping = getResult(r.id, "mapping") as MappingReport | null;
-    const compare = getResult(r.id, "compare") as CompareReport | null;
-    return {
-      id: r.id,
-      name: r.name,
-      createdAt: r.created_at,
-      triples: r.triples,
-      classes: r.classes,
-      properties: r.properties,
-      hasCompare: compare !== null,
-      hasMapping: mapping !== null,
-      linkScore: mapping
-        ? (mapping.linkScore ?? linkScoreOf(mapping.entries))
-        : undefined,
-      similarityScore: compare ? compare.similarityScore : undefined,
-    };
-  });
-}
-
-export function importOntology(
-  id: string,
-  name: string,
-  content: string
-): WsOntology {
-  if (!VALID_ID.test(id)) throw new Error("Invalid id");
-  const ext = (name.split(".").pop() ?? "ttl").toLowerCase();
-  const store = loadStore(content, ext); // valide le fichier avant d'accepter
-  const { classes, propertyCount } = parseClasses(store);
-  if (classes.length === 0)
-    throw new Error("No OWL/RDFS classes found in this file");
-  const filename = `${id}.${ext}`;
-  writeFileSync(join(WS_DIR, filename), content, "utf8");
-  db.prepare(
-    `INSERT INTO ws_ontologies (id, name, filename, created_at, triples, classes, properties)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, name, filename, Date.now(), store.size, classes.length, propertyCount);
-  return listOntologies().find((o) => o.id === id)!;
-}
-
-export function deleteOntology(id: string): boolean {
-  if (!VALID_ID.test(id)) return false;
-  const row = db
-    .prepare(`SELECT filename FROM ws_ontologies WHERE id = ?`)
-    .get(id) as { filename: string } | undefined;
-  if (!row) return false;
-  for (const f of [row.filename, `${id}-mapped.ttl`, `${id}-mappings.sssom.tsv`]) {
-    try {
-      if (existsSync(join(WS_DIR, f))) unlinkSync(join(WS_DIR, f));
-    } catch {
-      /* fichier fantôme : la ligne DB part quand même */
-    }
-  }
-  db.prepare(`DELETE FROM ws_results WHERE onto_id = ?`).run(id);
-  db.prepare(`DELETE FROM ws_ontologies WHERE id = ?`).run(id);
-  wsGraphCache.delete(`${id}:original`);
-  wsGraphCache.delete(`${id}:mapped`);
-  wsEmbCache.delete(id);
-  wsClassCache.delete(id);
-  return true;
-}
-
-export function getResult(id: string, kind: string): unknown | null {
-  const row = db
-    .prepare(`SELECT data FROM ws_results WHERE onto_id = ? AND kind = ?`)
-    .get(id, kind) as { data: string } | undefined;
-  return row ? JSON.parse(row.data) : null;
-}
-
-function saveResult(id: string, kind: string, data: unknown): void {
-  db.prepare(
-    `INSERT INTO ws_results (onto_id, kind, created_at, data) VALUES (?, ?, ?, ?)
-     ON CONFLICT(onto_id, kind) DO UPDATE SET created_at = excluded.created_at, data = excluded.data`
-  ).run(id, kind, Date.now(), JSON.stringify(data));
-}
-
-export function mappedFilePath(id: string): string | null {
-  const p = join(WS_DIR, `${id}-mapped.ttl`);
-  return existsSync(p) ? p : null;
+function referenceTitle(projectId: string): string {
+  return getReference(projectId).meta.ontology.title;
 }
 
 function loadImported(id: string): {
-  classes: WsClass[];
+  classes: OntoClass[];
   content: string;
   name: string;
   ext: string;
-  store: InstanceType<typeof oxigraph.Store>;
+  store: Store;
 } {
-  const row = db
-    .prepare(`SELECT name, filename FROM ws_ontologies WHERE id = ?`)
-    .get(id) as { name: string; filename: string } | undefined;
-  if (!row) throw new Error("Unknown ontology");
-  const content = readFileSync(join(WS_DIR, row.filename), "utf8");
-  const ext = (row.filename.split(".").pop() ?? "ttl").toLowerCase();
+  const { content, ext, name } = ontologySource(id);
   const store = loadStore(content, ext);
   const { classes } = parseClasses(store);
-  return { classes, content, name: row.name, ext, store };
-}
-
-/** Contenu Turtle de base pour le fichier mappé : les sources non-Turtle
-    (RDF/XML…) sont converties, car on y concatène des triples Turtle. */
-function turtleBase(content: string, ext: string, store: InstanceType<typeof oxigraph.Store>): string {
-  if (ext === "ttl" || ext === "n3" || ext === "nt") return content;
-  try {
-    return store.dump({ format: "text/turtle" }) as string;
-  } catch {
-    return (store.dump as unknown as (f: string) => string)("text/turtle");
-  }
+  return { classes, content, name, ext, store };
 }
 
 /* ------------- Graphe d'une ontologie importée (onglet Graph) ------ */
-/* Même forme que le graphe du DR ; en version « mapped », les axiomes de
-   liaison deviennent des arêtes vers les IRIs du DR (le frontend fusionne
-   les deux graphes, les liens retrouvent donc leurs cibles).             */
-
-/* Cibles de mapping valides = nœuds du graphe DR fusionné côté frontend
-   (y compris les classes « externes » hors préfixe ecsel-dr). Tester
-   l'appartenance réelle évite les arêtes pendantes ET ne rate aucun
-   namespace du DR. */
-let drNodeIdsCache: Set<string> | null = null;
-function drNodeIds(): Set<string> {
-  if (!drNodeIdsCache)
-    drNodeIdsCache = new Set(getFullGraph().nodes.map((n) => n.id));
-  return drNodeIdsCache;
-}
+/* Même forme que le graphe de la référence ; en version « mapped », les
+   axiomes de liaison deviennent des arêtes vers les IRIs de la référence
+   (le frontend fusionne les deux graphes).                              */
 
 export interface WsGraph {
   nodes: {
@@ -375,7 +121,7 @@ export interface WsGraph {
     type: "subclass" | "property";
     label?: string;
     iri?: string;
-    /** true = axiome de liaison vers le DR (visible en mode « linked » seulement) */
+    /** true = axiome de liaison vers la référence (mode « linked ») */
     mapping?: boolean;
   }[];
 }
@@ -384,41 +130,47 @@ export interface WsGraph {
 // ne changent qu'à la ré-importation (nouvel id) ou après un mapping.
 const wsGraphCache = new Map<string, WsGraph>();
 const wsEmbCache = new Map<string, number[][]>();
-const wsClassCache = new Map<string, WsClass[]>();
+const wsClassCache = new Map<string, OntoClass[]>();
 
-export function ontologyGraph(id: string, version: "original" | "mapped"): WsGraph {
+export function forgetOntologyCaches(id: string): void {
+  wsGraphCache.delete(`${id}:original`);
+  wsGraphCache.delete(`${id}:mapped`);
+  wsEmbCache.delete(id);
+  wsClassCache.delete(id);
+}
+
+export function ontologyGraph(
+  projectId: string,
+  id: string,
+  version: "original" | "mapped"
+): WsGraph {
+  const onto = getOntology(id);
+  if (!onto || onto.projectId !== projectId)
+    throw new HttpError(404, "Unknown ontology in this project");
   const cacheKey = `${id}:${version}`;
   const cached = wsGraphCache.get(cacheKey);
   if (cached) return cached;
-  const row = db
-    .prepare(`SELECT name, filename FROM ws_ontologies WHERE id = ?`)
-    .get(id) as { name: string; filename: string } | undefined;
-  if (!row) throw new Error("Unknown ontology");
+
   let content: string;
   let ext: string;
   if (version === "mapped") {
     const path = mappedFilePath(id);
-    if (!path) throw new Error("No mapping generated yet — run Map to DR first");
+    if (!path)
+      throw new HttpError(400, "No mapping generated yet — run Map to reference first");
     content = readFileSync(path, "utf8");
     ext = "ttl";
   } else {
-    content = readFileSync(join(WS_DIR, row.filename), "utf8");
-    ext = (row.filename.split(".").pop() ?? "ttl").toLowerCase();
+    const src = ontologySource(id);
+    content = src.content;
+    ext = src.ext;
   }
   const store = loadStore(content, ext);
   const { classes } = parseClasses(store);
   const classSet = new Set(classes.map((c) => c.iri));
-  const source = row.name.replace(/\.[^.]+$/, "");
-
-  type Term = { termType: string; value: string };
-  type Binding = Map<string, Term>;
-  const q = (sparql: string) =>
-    store.query(
-      `PREFIX owl: <http://www.w3.org/2002/07/owl#>
-       PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-       PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-       ${sparql}`
-    ) as Binding[];
+  const source = onto.name.replace(/\.[^.]+$/, "");
+  // Cibles de mapping valides = nœuds du graphe de référence : tester
+  // l'appartenance réelle évite les arêtes pendantes.
+  const refNodeIds = new Set(getReference(projectId).graph.nodes.map((n) => n.id));
 
   const links: WsGraph["links"] = [];
   const seen = new Set<string>();
@@ -429,8 +181,9 @@ export function ontologyGraph(id: string, version: "original" | "mapped"): WsGra
     links.push(l);
   };
 
-  // Hiérarchie interne + axiomes de subsomption vers le DR (version mappée)
-  for (const b of q(
+  // Hiérarchie interne + axiomes de subsomption vers la référence
+  for (const b of select(
+    store,
     `SELECT ?s ?o WHERE { ?s rdfs:subClassOf ?o . FILTER(isIRI(?s) && isIRI(?o)) }`
   )) {
     const s = b.get("s")!.value;
@@ -438,47 +191,41 @@ export function ontologyGraph(id: string, version: "original" | "mapped"): WsGra
     if (!classSet.has(s) || s === o) continue;
     if (classSet.has(o)) {
       push({ source: s, target: o, type: "subclass", label: "subClassOf" });
-    } else if (drNodeIds().has(o)) {
+    } else if (refNodeIds.has(o)) {
       push({
         source: s,
         target: o,
         type: "property",
-        label: "⊑ subClassOf (DR)",
+        label: "⊑ subClassOf (reference)",
         iri: "http://www.w3.org/2000/01/rdf-schema#subClassOf",
         mapping: true,
       });
     }
   }
-  // Axiomes d'équivalence / proximité vers le DR (SKOS pour les mappings
-  // récents ; owl:equivalentClass conservé pour les fichiers anciens)
+  // Axiomes d'équivalence / proximité vers la référence (SKOS pour les
+  // mappings récents ; owl:equivalentClass conservé pour les anciens fichiers)
   const MAPPING_PREDICATES: [string, string, string][] = [
-    ["skos:exactMatch", "≡ exactMatch (DR)", "http://www.w3.org/2004/02/skos/core#exactMatch"],
-    ["skos:broadMatch", "⊑ broadMatch (DR)", "http://www.w3.org/2004/02/skos/core#broadMatch"],
-    ["skos:closeMatch", "≈ closeMatch (DR)", "http://www.w3.org/2004/02/skos/core#closeMatch"],
-    ["owl:equivalentClass", "≡ equivalentClass (DR)", "http://www.w3.org/2002/07/owl#equivalentClass"],
+    ["skos:exactMatch", "≡ exactMatch", "http://www.w3.org/2004/02/skos/core#exactMatch"],
+    ["skos:broadMatch", "⊑ broadMatch", "http://www.w3.org/2004/02/skos/core#broadMatch"],
+    ["skos:closeMatch", "≈ closeMatch", "http://www.w3.org/2004/02/skos/core#closeMatch"],
+    ["owl:equivalentClass", "≡ equivalentClass", "http://www.w3.org/2002/07/owl#equivalentClass"],
   ];
   for (const [pred, label, iri] of MAPPING_PREDICATES) {
-    for (const b of q(
+    for (const b of select(
+      store,
       `SELECT ?s ?o WHERE { ?s ${pred} ?o . FILTER(isIRI(?s) && isIRI(?o)) }`
     )) {
       const s = b.get("s")!.value;
       const o = b.get("o")!.value;
       if (!classSet.has(s)) continue;
-      if (drNodeIds().has(o) || classSet.has(o)) {
-        push({
-          source: s,
-          target: o,
-          type: "property",
-          label,
-          iri,
-          mapping: true,
-        });
+      if (refNodeIds.has(o) || classSet.has(o)) {
+        push({ source: s, target: o, type: "property", label, iri, mapping: true });
       }
     }
   }
-  // Propriétés objet internes (domain -> range, sans owl:unionOf : les
-  // ontologies importées simples suffisent pour la visualisation)
-  for (const b of q(
+  // Propriétés objet internes (domain -> range)
+  for (const b of select(
+    store,
     `SELECT DISTINCT ?p ?label ?d ?r WHERE {
        ?p a owl:ObjectProperty . FILTER(isIRI(?p))
        ?p rdfs:domain ?d . FILTER(isIRI(?d))
@@ -523,8 +270,8 @@ export function ontologyGraph(id: string, version: "original" | "mapped"): WsGra
 }
 
 /* ------ Contexte chatbot : fiches des ontologies sélectionnées ------ */
-/* Chaque classe importée devient une fiche (avec son lien DR issu du
-   mapping) + son embedding (réutilisé du compare/map si déjà calculé).   */
+/* Chaque classe importée devient une fiche (avec son lien vers la
+   référence issu du mapping) + son embedding.                          */
 
 const REL_SYMBOL: Record<string, string> = {
   equivalent: "≡ equivalent to",
@@ -532,16 +279,20 @@ const REL_SYMBOL: Record<string, string> = {
   related: "≈ close match of",
 };
 
-export async function contextIndex(ids: string[]): Promise<ExtraIndex | null> {
+export async function contextIndex(
+  projectId: string,
+  ids: string[]
+): Promise<ExtraIndex | null> {
   const cards: Card[] = [];
   const vectors: Float32Array[] = [];
+  const refTitle = referenceTitle(projectId);
   // Plafond de sécurité : 16 ontologies × ≤300 classes = ~4800 fiches max,
   // le scan cosinus reste en millisecondes.
   for (const id of ids.slice(0, 16)) {
-    const row = db
-      .prepare(`SELECT name FROM ws_ontologies WHERE id = ?`)
-      .get(id) as { name: string } | undefined;
-    if (!row) continue;
+    const onto = getOntology(id);
+    // Les ontologies de la référence sont déjà dans l'index principal :
+    // les rajouter dupliquerait leurs fiches dans le retrieval.
+    if (!onto || onto.projectId !== projectId || onto.inReference) continue;
     let classes = wsClassCache.get(id);
     if (!classes) {
       classes = loadImported(id).classes;
@@ -559,13 +310,13 @@ export async function contextIndex(ids: string[]): Promise<ExtraIndex | null> {
         .filter((e) => e.relation !== "none")
         .map((e) => [e.sourceIri, e])
     );
-    const source = row.name.replace(/\.[^.]+$/, "");
+    const source = onto.name.replace(/\.[^.]+$/, "");
     subset.forEach((c, k) => {
       const link = linkOf.get(c.iri);
       const linkText = mapping
         ? link
-          ? `\nLinked to the Digital Reference: ${REL_SYMBOL[link.relation]} ${link.target} (<${link.targetIri}>)`
-          : "\nNot linked to the Digital Reference (no good match found)."
+          ? `\nLinked to ${refTitle}: ${REL_SYMBOL[link.relation]} ${link.target} (<${link.targetIri}>)`
+          : `\nNot linked to ${refTitle} (no good match found).`
         : "";
       cards.push({
         iri: c.iri,
@@ -581,26 +332,25 @@ export async function contextIndex(ids: string[]): Promise<ExtraIndex | null> {
   return cards.length > 0 ? { cards, vectors } : null;
 }
 
-/* --------------------- Similarité contre le DR --------------------- */
+/* ------------------ Index structurel de la référence ---------------- */
+/* Profils (labels normalisés, altLabels, parents, voisins) + index BM25
+   où chaque classe est un « document ». Construit une fois par projet.  */
 
-const MAX_CLASSES = 300;
-
-/* Index structurel du DR : profils (labels normalisés, altLabels, parents,
-   voisins) + index BM25 où chaque classe est un « document » (label +
-   définition + contexte de graphe). Construit une fois, invalidé jamais
-   (le DR ne change pas pendant la vie du process).                      */
-interface DrStructure {
+interface RefStructure {
   profiles: Map<string, EntityProfile>;
   bm25: Bm25Index;
   docIdx: Map<string, number>;
   /** label normalisé -> IRIs : candidats lexicaux exacts hors top cosinus */
   byNorm: Map<string, string[]>;
 }
-let drStructCache: DrStructure | null = null;
+const structCache = new Map<string, RefStructure>();
+onProjectInvalidated((projectId) => structCache.delete(projectId));
 
-function drStructure(): DrStructure {
-  if (drStructCache) return drStructCache;
-  const { nodes, links } = getFullGraph();
+function refStructure(projectId: string): RefStructure {
+  const cached = structCache.get(projectId);
+  if (cached) return cached;
+  const ref = getReference(projectId);
+  const { nodes, links } = ref.graph;
   const labelOf = new Map(nodes.map((n) => [n.id, n.label]));
   const cap = (list: string[], v: string, max: number) => {
     if (list.length < max && !list.includes(v)) list.push(v);
@@ -620,14 +370,13 @@ function drStructure(): DrStructure {
     cap(at(neigh, l.target), sl, 24);
     if (l.type === "subclass") cap(at(supers, l.source), tl, 8);
   }
-  // altLabels du DR (si le vocabulaire en déclare)
+  // altLabels de la référence (si le vocabulaire en déclare)
   const alts = new Map<string, string[]>();
   try {
-    type Term = { value: string };
-    for (const b of drStore.query(
-      `PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-       SELECT ?c ?alt WHERE { ?c skos:altLabel ?alt }`
-    ) as Map<string, Term>[]) {
+    for (const b of select(
+      ref.store,
+      `SELECT ?c ?alt WHERE { ?c skos:altLabel ?alt }`
+    )) {
       const c = b.get("c")?.value;
       const alt = b.get("alt")?.value;
       if (c && alt) cap(at(alts, c), alt, 8);
@@ -658,12 +407,15 @@ function drStructure(): DrStructure {
     ]);
     at(byNorm, prof.norm).push(n.id);
   }
-  drStructCache = { profiles, bm25: new Bm25Index(docs), docIdx, byNorm };
-  console.log(`[workspace] index structurel DR: ${profiles.size} profils`);
-  return drStructCache;
+  const struct: RefStructure = { profiles, bm25: new Bm25Index(docs), docIdx, byNorm };
+  structCache.set(projectId, struct);
+  console.log(
+    `[workspace] index structurel de ${ref.meta.ontology.title}: ${profiles.size} profils`
+  );
+  return struct;
 }
 
-function wsProfileOf(wc: WsClass): EntityProfile {
+function wsProfileOf(wc: OntoClass): EntityProfile {
   return makeProfile({
     label: wc.label,
     localName: localName(wc.iri),
@@ -683,17 +435,17 @@ interface MatchCandidate {
   facets: FacetScores;
 }
 
-/* Présélection par cosinus (rapide sur tout le DR), puis notation
-   multi-facettes des meilleurs candidats seulement : le coût des
-   métriques lexicales/structurelles reste en O(classes × PRESELECT). */
+/* Présélection par cosinus (rapide sur toute la référence), puis notation
+   multi-facettes des meilleurs candidats seulement. */
 const PRESELECT = 12;
 
-async function bestDrMatches(
-  classes: WsClass[],
+async function bestRefMatches(
+  projectId: string,
+  classes: OntoClass[],
   cacheKey?: string
 ): Promise<{ perClass: MatchCandidate[][]; truncated: number }> {
-  const { cards, vectors } = await drIndex();
-  const struct = drStructure();
+  const { cards, vectors } = await referenceIndex(projectId);
+  const struct = refStructure(projectId);
   const classIdx: number[] = [];
   const idxByIri = new Map<string, number>();
   cards.forEach((c, i) => {
@@ -728,16 +480,15 @@ async function bestDrMatches(
     if (wcProfile.norm.length > 2) {
       for (const iri of struct.byNorm.get(wcProfile.norm) ?? []) {
         const i = idxByIri.get(iri);
-        if (i !== undefined && !picked.has(i))
-          picked.set(i, cosine(v, vectors[i]));
+        if (i !== undefined && !picked.has(i)) picked.set(i, cosine(v, vectors[i]));
       }
     }
     // 2. notation multi-facettes + re-classement. Le BM25 est renormalisé
     // par rapport au pool de candidats (le meilleur ≈ 1) : la borne
     // supérieure théorique est inatteignable dès que la définition
-    // importée emploie des mots absents du corpus DR, ce qui écrasait
-    // tous les scores. Plancher 0.2 : si tout le pool est faible, on ne
-    // gonfle pas artificiellement le moins mauvais.
+    // importée emploie des mots absents du corpus de référence, ce qui
+    // écrasait tous les scores. Plancher 0.2 : si tout le pool est faible,
+    // on ne gonfle pas artificiellement le moins mauvais.
     const pool: { i: number; cos: number; bm25raw?: number }[] = [];
     for (const [i, cos] of picked) {
       const d = struct.docIdx.get(cards[i].iri);
@@ -755,8 +506,7 @@ async function bestDrMatches(
       if (!prof) continue;
       const facets = compareEntities(wcProfile, prof, {
         contextual: cos,
-        bm25:
-          bm25raw !== undefined ? Math.min(1, bm25raw / bm25Max) : undefined,
+        bm25: bm25raw !== undefined ? Math.min(1, bm25raw / bm25Max) : undefined,
       });
       scored.push({
         iri: card.iri,
@@ -769,10 +519,6 @@ async function bestDrMatches(
     scored.sort((a, b) => b.score - a.score);
     return scored.slice(0, 3);
   });
-  console.log(
-    "[workspace] bestDrMatches:",
-    perClass.slice(0, 3).map((c, i) => `${subset[i].label}=${c[0]?.score?.toFixed(3)}`).join(" ")
-  );
   return { perClass, truncated };
 }
 
@@ -805,7 +551,7 @@ export interface CompareReport {
   totalClasses: number;
   analyzed: number;
   truncated: number;
-  /** Similarité moyenne au DR (0-100), avant vérification LLM */
+  /** Similarité moyenne à la référence (0-100), avant vérification LLM */
   similarityScore: number;
   buckets: { strong: number; medium: number; weak: number };
   matches: {
@@ -819,9 +565,13 @@ export interface CompareReport {
   }[];
 }
 
-export async function compareToDr(id: string): Promise<CompareReport> {
+export async function compareToReference(
+  projectId: string,
+  id: string
+): Promise<CompareReport> {
+  loadTarget(projectId, id);
   const { classes } = loadImported(id);
-  const { perClass, truncated } = await bestDrMatches(classes, id);
+  const { perClass, truncated } = await bestRefMatches(projectId, classes, id);
   const buckets = { strong: 0, medium: 0, weak: 0 };
   const matches: CompareReport["matches"] = [];
   perClass.forEach((cands, k) => {
@@ -842,9 +592,7 @@ export async function compareToDr(id: string): Promise<CompareReport> {
   });
   matches.sort((a, b) => b.score - a.score);
   const avg =
-    matches.length > 0
-      ? matches.reduce((s, m) => s + m.score, 0) / matches.length
-      : 0;
+    matches.length > 0 ? matches.reduce((s, m) => s + m.score, 0) / matches.length : 0;
   const report: CompareReport = {
     createdAt: Date.now(),
     totalClasses: classes.length,
@@ -879,7 +627,7 @@ export interface MappingReport {
   createdAt: number;
   totalClasses: number;
   truncated: number;
-  /** Score de liaison au DR (0-100) : couverture pondérée par relation et confiance */
+  /** Score de liaison à la référence (0-100) : couverture pondérée */
   linkScore: number;
   counts: { equivalent: number; subclass: number; related: number; none: number };
   entries: MappingEntry[];
@@ -899,8 +647,7 @@ function linkScoreOf(entries: MappingEntry[]): number {
     none: 0,
   };
   const sum = entries.reduce(
-    (acc, e) =>
-      acc + W[e.relation] * (e.relation === "none" ? 0 : (e.confidence ?? 0.7)),
+    (acc, e) => acc + W[e.relation] * (e.relation === "none" ? 0 : (e.confidence ?? 0.7)),
     0
   );
   return Math.round((sum / entries.length) * 100);
@@ -908,7 +655,7 @@ function linkScoreOf(entries: MappingEntry[]): number {
 
 /* Le mapping n'utilise QUE des prédicats SKOS : contrairement à
    owl:equivalentClass / rdfs:subClassOf, ils ne modifient pas la
-   sémantique inférée du DR (pas de nouvelles subsomptions déduites). */
+   sémantique inférée de la référence. */
 const REL_PROP: Record<string, string> = {
   equivalent: "http://www.w3.org/2004/02/skos/core#exactMatch",
   subclass: "http://www.w3.org/2004/02/skos/core#broadMatch",
@@ -921,16 +668,21 @@ const fmtFacets = (f: FacetScores): string => {
 };
 
 async function verifyBatch(
-  items: { wc: WsClass; cands: MatchCandidate[] }[],
-  drCardByIri: Map<string, Card>
+  refTitle: string,
+  refDescription: string,
+  items: { wc: OntoClass; cands: MatchCandidate[] }[],
+  refCardByIri: Map<string, Card>
 ): Promise<MappingEntry[]> {
+  const about = refDescription
+    ? `${refTitle} (${refDescription.replace(/\s+/g, " ").slice(0, 200)})`
+    : refTitle;
   const sys =
-    "You align classes of an external ontology onto the Digital Reference (DR), " +
-    "an OWL ontology of semiconductor supply chains. For EACH item decide:\n" +
-    '- "equivalent": same concept as the DR candidate\n' +
-    '- "subclass": the external class is a MORE SPECIFIC kind of the DR candidate\n' +
+    `You align classes of an external ontology onto ${about}, the reference ` +
+    "ontology of the current project. For EACH item decide:\n" +
+    '- "equivalent": same concept as the reference candidate\n' +
+    '- "subclass": the external class is a MORE SPECIFIC kind of the candidate\n' +
     '- "related": clearly related but neither equivalent nor a subclass\n' +
-    '- "none": no DR candidate fits — the class stays unlinked\n' +
+    '- "none": no candidate fits — the class stays unlinked\n' +
     "Each candidate has similarity scores from independent matchers " +
     "(lexical = string metrics, structural = graph neighborhood, semantic = " +
     "embeddings). High lexical with low structural often means a FALSE FRIEND " +
@@ -944,12 +696,12 @@ async function verifyBatch(
     .map(({ wc, cands }, i) => {
       const cs = cands
         .map((c) => {
-          const card = drCardByIri.get(c.iri);
+          const card = refCardByIri.get(c.iri);
           const def = card?.text.match(/Definition: (.*)/)?.[1]?.slice(0, 180);
           return `  - ${c.iri} — ${c.label}${def ? ` : ${def}` : ""} [${fmtFacets(c.facets)}]`;
         })
         .join("\n");
-      return `Item ${i}:\nExternal class:\n${wc.text.slice(0, 400)}\nDR candidates:\n${cs}`;
+      return `Item ${i}:\nExternal class:\n${wc.text.slice(0, 400)}\nReference candidates:\n${cs}`;
     })
     .join("\n\n");
   // Budget large : les modèles récents consomment une partie de max_tokens en
@@ -1001,6 +753,7 @@ async function verifyBatch(
 /* SSSOM : justification unique (matchers composés + vérification LLM). */
 const SSSOM_JUSTIFICATION = "semapv:CompositeMatching";
 const SKOS_NS = "http://www.w3.org/2004/02/skos/core#";
+const ALIGN_NS = "https://w3id.org/ontology-explorer/alignment#";
 
 const relCurie = (relation: MappingEntry["relation"]): string =>
   `skos:${REL_PROP[relation].slice(SKOS_NS.length)}`;
@@ -1009,17 +762,20 @@ const relCurie = (relation: MappingEntry["relation"]): string =>
     métadonnées SSSOM (confiance, score global, scores par facette).      */
 function alignmentTurtle(
   name: string,
+  refTitle: string,
   entries: MappingEntry[],
   linked: MappingEntry[]
 ): string {
-  const safeName = name.replace(/[\n\r]+/g, " ");
+  const safe = (s: string) => s.replace(/[\n\r]+/g, " ");
   const lines: string[] = [];
   lines.push("");
   lines.push("#################################################################");
-  lines.push(`# Alignment to the Digital Reference — generated ${new Date().toISOString()}`);
-  lines.push(`# Source: ${safeName} · ${linked.length}/${entries.length} classes linked to the DR`);
-  lines.push("# SKOS mapping axioms only (the DR's inferred semantics are NOT");
-  lines.push("# modified), each reified as owl:Axiom with SSSOM metadata:");
+  lines.push(`# Alignment to ${safe(refTitle)} — generated ${new Date().toISOString()}`);
+  lines.push(
+    `# Source: ${safe(name)} · ${linked.length}/${entries.length} classes linked`
+  );
+  lines.push("# SKOS mapping axioms only (the reference's inferred semantics are");
+  lines.push("# NOT modified), each reified as owl:Axiom with SSSOM metadata:");
   lines.push("# confidence (LLM verifier), similarity_score (aggregated) and");
   lines.push("# per-facet scores (lexical / structural / semantic).");
   lines.push("#################################################################");
@@ -1028,7 +784,7 @@ function alignmentTurtle(
   lines.push(`@prefix skos: <${SKOS_NS}> .`);
   lines.push("@prefix sssom: <https://w3id.org/sssom/> .");
   lines.push("@prefix semapv: <https://w3id.org/semapv/vocab/> .");
-  lines.push("@prefix dralign: <http://www.w3id.org/ecsel-dr/alignment#> .");
+  lines.push(`@prefix align: <${ALIGN_NS}> .`);
   const dbl = (x: number) => `"${x.toFixed(3)}"^^xsd:double`;
   for (const e of linked) {
     lines.push("");
@@ -1042,29 +798,34 @@ function alignmentTurtle(
     if (e.confidence !== undefined) props.push(`   sssom:confidence ${dbl(e.confidence)}`);
     if (e.score !== undefined) props.push(`   sssom:similarity_score ${dbl(e.score)}`);
     if (e.facets) {
-      props.push(`   dralign:lexicalSimilarity ${dbl(e.facets.lexical)}`);
+      props.push(`   align:lexicalSimilarity ${dbl(e.facets.lexical)}`);
       if (e.facets.structural !== undefined)
-        props.push(`   dralign:structuralSimilarity ${dbl(e.facets.structural)}`);
+        props.push(`   align:structuralSimilarity ${dbl(e.facets.structural)}`);
       if (e.facets.semantic !== undefined)
-        props.push(`   dralign:semanticSimilarity ${dbl(e.facets.semantic)}`);
+        props.push(`   align:semanticSimilarity ${dbl(e.facets.semantic)}`);
     }
     if (e.importance !== undefined)
-      props.push(`   dralign:importanceScore ${dbl(e.importance)}`);
+      props.push(`   align:importanceScore ${dbl(e.importance)}`);
     lines.push(props.join(" ;\n") + " .");
   }
   return lines.join("\n");
 }
 
 /** Export SSSOM TSV (format d'échange standard des mappings). */
-function sssomTsv(id: string, name: string, linked: MappingEntry[]): string {
+function sssomTsv(
+  id: string,
+  name: string,
+  refTitle: string,
+  linked: MappingEntry[]
+): string {
   const esc = (s: string) => s.replace(/[\t\n\r]+/g, " ").trim();
   const lines: string[] = [
     "# curie_map:",
     `#   skos: ${SKOS_NS}`,
     "#   semapv: https://w3id.org/semapv/vocab/",
     `# mapping_set_id: urn:uuid:${id}`,
-    `# mapping_set_description: Alignment of "${esc(name).replace(/"/g, "'")}" onto the Digital Reference`,
-    "# mapping_tool: Digital Reference Explorer",
+    `# mapping_set_description: Alignment of "${esc(name).replace(/"/g, "'")}" onto ${esc(refTitle)}`,
+    "# mapping_tool: Ontology Explorer",
     `# mapping_date: "${new Date().toISOString().slice(0, 10)}"`,
     "# license: https://w3id.org/sssom/license/unspecified",
     [
@@ -1095,34 +856,50 @@ function sssomTsv(id: string, name: string, linked: MappingEntry[]): string {
   return lines.join("\n") + "\n";
 }
 
+export function mappedFilePath(id: string): string | null {
+  if (!VALID_ID.test(id)) return null;
+  const p = join(WS_DIR, `${id}-mapped.ttl`);
+  return existsSync(p) ? p : null;
+}
+
 export function sssomFilePath(id: string): string | null {
   if (!VALID_ID.test(id)) return null;
   const p = join(WS_DIR, `${id}-mappings.sssom.tsv`);
   return existsSync(p) ? p : null;
 }
 
-export async function mapToDr(id: string): Promise<MappingReport> {
+/** Contenu Turtle de base : les sources non-Turtle sont converties, car on
+    y concatène des triples Turtle. */
+function turtleBase(content: string, ext: string, store: Store): string {
+  if (ext === "ttl" || ext === "n3" || ext === "nt") return content;
+  return dumpTurtle(store);
+}
+
+export async function mapToReference(
+  projectId: string,
+  id: string
+): Promise<MappingReport> {
+  loadTarget(projectId, id);
+  const ref = getReference(projectId);
+  const refTitle = ref.meta.ontology.title;
   const { classes, content, name, ext, store } = loadImported(id);
-  const { perClass, truncated } = await bestDrMatches(classes, id);
-  const drCardByIri = new Map((await drIndex()).cards.map((c) => [c.iri, c]));
+  const { perClass, truncated } = await bestRefMatches(projectId, classes, id);
+  const refCardByIri = new Map((await referenceIndex(projectId)).cards.map((c) => [c.iri, c]));
 
   /* Importance : centralité (degré normalisé) dans l'ontologie importée.
      Sert à vérifier les concepts centraux en premier (un échec API en
      cours de route sacrifie d'abord les classes périphériques). */
   const maxDegree = classes.reduce((m, c) => Math.max(m, c.degree), 1);
-  const importanceOf = (wc: WsClass) => r3(wc.degree / maxDegree);
+  const importanceOf = (wc: OntoClass) => r3(wc.degree / maxDegree);
 
   // Vérification LLM uniquement pour les candidats plausibles : score
   // agrégé correct OU signal sémantique seul déjà fort (le structurel
   // peut plomber l'agrégé d'un vrai match sous un autre nom).
-  const toVerify: { wc: WsClass; cands: MatchCandidate[] }[] = [];
+  const toVerify: { wc: OntoClass; cands: MatchCandidate[] }[] = [];
   const entries: MappingEntry[] = [];
   perClass.forEach((cands, k) => {
     const best = cands[0];
-    if (
-      best &&
-      (best.score >= 0.5 || (best.facets.detail.contextual ?? 0) >= 0.55)
-    ) {
+    if (best && (best.score >= 0.5 || (best.facets.detail.contextual ?? 0) >= 0.55)) {
       toVerify.push({ wc: classes[k], cands });
     } else {
       entries.push({
@@ -1140,10 +917,9 @@ export async function mapToDr(id: string): Promise<MappingReport> {
     const batch = toVerify.slice(i, i + BATCH);
     try {
       entries.push(
-        ...(await verifyBatch(batch, drCardByIri)).map((e) => ({
-          ...e,
-          importance: importanceByIri.get(e.sourceIri),
-        }))
+        ...(
+          await verifyBatch(refTitle, ref.meta.ontology.description, batch, refCardByIri)
+        ).map((e) => ({ ...e, importance: importanceByIri.get(e.sourceIri) }))
       );
     } catch (e) {
       // Un lot en échec (API indisponible…) ne doit pas faire perdre le
@@ -1163,16 +939,20 @@ export async function mapToDr(id: string): Promise<MappingReport> {
     );
   }
 
-  /* --- Nouvelle ontologie : copie de l'importée + axiomes vers le DR --- */
+  /* --- Nouvelle ontologie : copie de l'importée + axiomes vers la réf --- */
   const linked = entries.filter((e) => e.relation !== "none");
   const mapped =
     turtleBase(content, ext, store).trimEnd() +
     "\n" +
-    alignmentTurtle(name, entries, linked) +
+    alignmentTurtle(name, refTitle, entries, linked) +
     "\n";
   loadStore(mapped, "ttl"); // validation : le résultat doit se parser
   writeFileSync(join(WS_DIR, `${id}-mapped.ttl`), mapped, "utf8");
-  writeFileSync(join(WS_DIR, `${id}-mappings.sssom.tsv`), sssomTsv(id, name, linked), "utf8");
+  writeFileSync(
+    join(WS_DIR, `${id}-mappings.sssom.tsv`),
+    sssomTsv(id, name, refTitle, linked),
+    "utf8"
+  );
   wsGraphCache.delete(`${id}:mapped`); // le fichier mappé vient de changer
 
   const counts = { equivalent: 0, subclass: 0, related: 0, none: 0 };

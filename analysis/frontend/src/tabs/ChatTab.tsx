@@ -1,29 +1,44 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   clearChats,
   deleteChat,
-  fetchMeta,
   listChats,
-  listWsOntologies,
+  listOntologies,
   loadChat,
   saveChat,
   sendChat,
   streamChat,
   type ChatSummary,
-  type WsOntology,
+  type Project,
+  type ProjectOntology,
 } from "../api";
-import type { ChatMessage, ChatTrace } from "../types";
+import type { ChatMessage, ChatTrace, Meta } from "../types";
 import ChatPipeline from "../components/ChatPipeline";
 import SidePanel from "../components/SidePanel";
+import ThinkingTicker from "../components/ThinkingTicker";
 import { requestGraphFocus } from "../bus";
 import { renderDiagram } from "../diagram";
 
-const SUGGESTIONS = [
-  "What is the Supply Chain lobe?",
-  "How many direct subclasses does the Supply_Chain_Lobe have?",
-  "What is the longest subclass chain under the Supply Chain lobe?",
-  "How does the ontology model CO2 emissions?",
-];
+/** Suggestions construites à partir de la référence du projet courant. */
+function suggestionsFor(meta: Meta): string[] {
+  const group = meta.lobes[0];
+  const groupWord = meta.groupLabel.replace(/s$/, "").toLowerCase();
+  const big = [...meta.modules].filter((m) => !m.external)[0];
+  return [
+    group
+      ? `What is the ${group.label} ${groupWord}?`
+      : `What is ${meta.ontology.title} about?`,
+    group
+      ? `How many direct subclasses does ${group.id} have?`
+      : "Which classes have the most subclasses?",
+    group
+      ? `What is the longest subclass chain under the ${group.label} ${groupWord}?`
+      : "What is the longest subclass chain in this ontology?",
+    big
+      ? `What does the ${big.id} module model?`
+      : "Which concepts are the most connected?",
+  ];
+}
 
 /** Rendu markdown minimal : titres, listes (à puces et numérotées), blocs de
     code ```…```, diagrammes ```diagram, gras/italique/`code`. */
@@ -109,6 +124,19 @@ function renderMarkdown(text: string): string {
 
 const emptyTrace = (): ChatTrace => ({ sparqlAttempts: [] });
 
+/* Mode expert : coché = pipeline GraphRAG complet, décoché = la réponse seule.
+   La trace est streamée et stockée dans tous les cas, donc cocher la case
+   ré-affiche a posteriori le raisonnement des réponses déjà reçues. */
+const EXPERT_KEY = "dr.chat.expertMode";
+
+function loadExpert(): boolean {
+  try {
+    return localStorage.getItem(EXPERT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 /** Rend cliquables les IRIs préfixés (`dr:X`) présents dans la réponse. */
 function linkifyIris(
   html: string,
@@ -136,33 +164,59 @@ function fmtDate(ts: number): string {
 
 // La conversation courante survit au démontage de l'onglet (un seul onglet
 // monté à la fois pour économiser la mémoire).
-let savedMessages: ChatMessage[] = [];
-let savedChatId: string | null = null;
-let savedCtx: Set<string> = new Set();
+const savedMessages = new Map<string, ChatMessage[]>();
+const savedChatId = new Map<string, string | null>();
+const savedCtx = new Map<string, Set<string>>();
 
-export default function ChatTab() {
-  const [messages, setMessages] = useState<ChatMessage[]>(savedMessages);
-  const [chatId, setChatId] = useState<string | null>(savedChatId);
+interface Props {
+  /** Projet courant : ses conversations, sa référence, ses ontologies. */
+  project: Project;
+  meta: Meta;
+}
+
+export default function ChatTab({ project, meta }: Props) {
+  const projectId = project.id;
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    () => savedMessages.get(projectId) ?? []
+  );
+  const [chatId, setChatId] = useState<string | null>(
+    () => savedChatId.get(projectId) ?? null
+  );
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [input, setInput] = useState("");
   const [waiting, setWaiting] = useState(false);
+  const [expert, setExpert] = useState(loadExpert);
+  /* Instant de la question : le chrono d'attente survit à la bascule du
+     mode expert (qui démonte/remonte l'indicateur). */
+  const [startedAt, setStartedAt] = useState(0);
   const [liveTrace, setLiveTrace] = useState<ChatTrace | null>(null);
   const [liveStage, setLiveStage] = useState<string | null>(null);
   const traceRef = useRef<ChatTrace>(emptyTrace());
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [prefixes, setPrefixes] = useState<Record<string, string> | null>(null);
-  const [wsOntos, setWsOntos] = useState<WsOntology[]>([]);
-  const [ctxSel, setCtxSel] = useState<Set<string>>(savedCtx);
+  const [wsOntos, setWsOntos] = useState<ProjectOntology[]>([]);
+  const [ctxSel, setCtxSel] = useState<Set<string>>(
+    () => savedCtx.get(projectId) ?? new Set()
+  );
+  const prefixes = meta.prefixes;
+  const suggestions = useMemo(() => suggestionsFor(meta), [meta]);
 
   useEffect(() => {
-    savedCtx = ctxSel;
-  }, [ctxSel]);
+    savedCtx.set(projectId, ctxSel);
+  }, [projectId, ctxSel]);
 
   useEffect(() => {
-    listWsOntologies()
+    try {
+      localStorage.setItem(EXPERT_KEY, expert ? "1" : "0");
+    } catch {
+      /* stockage indisponible : le mode reste valable pour la session */
+    }
+  }, [expert]);
+
+  useEffect(() => {
+    listOntologies(projectId)
       .then((list) => {
-        const mapped = list.filter((o) => o.hasMapping);
+        const mapped = list.filter((o) => o.hasMapping && !o.inReference);
         setWsOntos(mapped);
         // purge des ontologies supprimées entre-temps
         setCtxSel((prev) => {
@@ -172,36 +226,55 @@ export default function ChatTab() {
         });
       })
       .catch(() => {});
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
-    savedMessages = messages;
-  }, [messages]);
+    savedMessages.set(projectId, messages);
+  }, [projectId, messages]);
   useEffect(() => {
-    savedChatId = chatId;
-  }, [chatId]);
+    savedChatId.set(projectId, chatId);
+  }, [projectId, chatId]);
 
   const refreshList = useCallback(() => {
-    listChats()
+    listChats(projectId)
       .then(setChats)
       .catch(() => {});
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     refreshList();
-    fetchMeta()
-      .then((m) => setPrefixes(m.prefixes))
-      .catch(() => {});
   }, [refreshList]);
 
   const resolveIri = useCallback(
     (prefixed: string): string | null => {
       const m = prefixed.match(/^([A-Za-z][\w.-]*):([\w][\w.-]*)$/);
-      if (!m || !prefixes) return null;
+      if (!m) return null;
       const ns = prefixes[m[1]];
       return ns ? ns + m[2] : null;
     },
     [prefixes]
+  );
+
+  /** Mode simple : rend cliquables les IRIs/arêtes intégrés à la réponse. */
+  const onAnswerClick = useCallback(
+    (e: React.MouseEvent) => {
+      const el = (e.target as Element).closest(
+        "[data-iri],[data-curie],[data-efrom]"
+      ) as HTMLElement | null;
+      if (!el) return;
+      const d = el.dataset;
+      if (d.iri) {
+        requestGraphFocus({ iri: d.iri });
+      } else if (d.curie) {
+        const iri = resolveIri(d.curie);
+        if (iri) requestGraphFocus({ iri });
+      } else if (d.efrom && d.eto) {
+        const from = resolveIri(d.efrom);
+        const to = resolveIri(d.eto);
+        if (from && to) requestGraphFocus({ from, to, via: d.evia || undefined });
+      }
+    },
+    [resolveIri]
   );
 
   useEffect(() => {
@@ -263,19 +336,19 @@ export default function ChatTab() {
   const openChat = useCallback(
     (id: string) => {
       if (waiting || id === chatId) return;
-      loadChat(id)
+      loadChat(projectId, id)
         .then((c) => {
           setChatId(c.id);
           setMessages(c.messages);
         })
         .catch(() => {});
     },
-    [waiting, chatId]
+    [projectId, waiting, chatId]
   );
 
   const removeChat = useCallback(
     (id: string) => {
-      deleteChat(id)
+      deleteChat(projectId, id)
         .then(() => {
           refreshList();
           if (id === chatId) {
@@ -285,27 +358,27 @@ export default function ChatTab() {
         })
         .catch(() => {});
     },
-    [chatId, refreshList]
+    [projectId, chatId, refreshList]
   );
 
   const clearAll = useCallback(() => {
     if (!window.confirm("Delete ALL saved conversations? This cannot be undone.")) return;
-    clearChats()
+    clearChats(projectId)
       .then(() => {
         setChats([]);
         setChatId(null);
         setMessages([]);
       })
       .catch(() => {});
-  }, []);
+  }, [projectId]);
 
   const persist = useCallback(
     (id: string, msgs: ChatMessage[]) => {
-      saveChat(id, msgs)
+      saveChat(projectId, id, msgs)
         .then(() => refreshList())
         .catch(() => {});
     },
-    [refreshList]
+    [projectId, refreshList]
   );
 
   /* ---- Envoi ---- */
@@ -319,6 +392,7 @@ export default function ChatTab() {
       const next: ChatMessage[] = [...messages, { role: "user", content }];
       setMessages(next);
       setInput("");
+      setStartedAt(Date.now());
       setWaiting(true);
       persist(id, next); // le message utilisateur est déjà sauvegardé
       traceRef.current = emptyTrace();
@@ -329,11 +403,11 @@ export default function ChatTab() {
           ctxSel.size > 0 ? { ontologies: [...ctxSel] } : undefined;
         let r;
         try {
-          r = await streamChat(next, onEvent, context);
+          r = await streamChat(projectId, next, onEvent, context);
         } catch (streamErr) {
           // Backend plus ancien sans /api/chat/stream : bascule non-streamée
           console.warn("stream failed, falling back to plain chat", streamErr);
-          r = await sendChat(next, context);
+          r = await sendChat(projectId, next, context);
         }
         const done: ChatMessage[] = [
           ...next,
@@ -367,7 +441,7 @@ export default function ChatTab() {
         inputRef.current?.focus();
       }
     },
-    [messages, waiting, onEvent, chatId, persist, ctxSel]
+    [projectId, messages, waiting, onEvent, chatId, persist, ctxSel]
   );
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -431,91 +505,141 @@ export default function ChatTab() {
       <div className="chat-layout">
         <div className="chat-banner">
           <span>🔎</span>
-          <span>
-            Answers are <strong>grounded in the ontology</strong> — watch the
-            pipeline run live (vectorization, vector search, SPARQL / graph
-            tools), then click any step under an answer to inspect it.
+          <span className="chat-banner-text">
+            {expert ? (
+              <>
+                Answers are <strong>grounded in the ontology</strong> — watch the
+                pipeline run live (vectorization, vector search, SPARQL / graph
+                tools), then click any step under an answer to inspect it.
+              </>
+            ) : (
+              <>
+                Answers are <strong>grounded in the ontology</strong> — turn on{" "}
+                <strong>Expert mode</strong> to unfold how each one was found.
+              </>
+            )}
           </span>
+          <label
+            className={`expert-toggle${expert ? " on" : ""}`}
+            title={
+              expert
+                ? "Showing the full GraphRAG pipeline under every answer"
+                : "Show the full GraphRAG pipeline (vectorization, retrieval, SPARQL, graph tools)"
+            }
+          >
+            <input
+              type="checkbox"
+              checked={expert}
+              onChange={(e) => setExpert(e.target.checked)}
+            />
+            <span>Expert mode</span>
+          </label>
         </div>
 
         <div className="chat-scroll" ref={scrollRef}>
-          {messages.length === 0 && !waiting ? (
-            <div className="chat-empty">
-              <div style={{ fontSize: 40 }}>💬</div>
-              <div>
-                Ask a question about the <strong>Digital Reference</strong> to
-                explore the ontology.
-              </div>
-              <div className="chat-suggestions">
-                {SUGGESTIONS.map((s) => (
-                  <button key={s} onClick={() => void send(s)}>
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <>
-              {messages.map((m, i) =>
-                m.role === "user" ? (
-                  <div key={i} className="chat-msg user">
-                    {m.content}
-                  </div>
-                ) : (
-                  <div
-                    key={i}
-                    className={`chat-msg assistant${m.trace ? " with-pipe" : ""}`}
-                  >
-                    {m.trace ? (
-                      <ChatPipeline
-                        trace={m.trace}
-                        activeStage={null}
-                        live={false}
-                        citations={m.citations}
-                        answerHtml={linkifyIris(renderMarkdown(m.content), resolveIri)}
-                        sparqlFailed={m.sparqlFailed}
-                        question={
-                          messages[i - 1]?.role === "user"
-                            ? messages[i - 1].content
-                            : undefined
-                        }
-                        onPeek={requestGraphFocus}
-                        resolveIri={resolveIri}
-                      />
-                    ) : (
-                      <>
-                        <div
-                          dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }}
-                        />
-                        {m.citations && m.citations.length > 0 && (
-                          <div className="chat-citations">
-                            {m.citations.map((c) => (
-                              <span key={c.iri} className="chat-chip" title={c.iri}>
-                                {c.label}
-                                <span className="chip-module">{c.module}</span>
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )
-              )}
-              {waiting && liveTrace && (
-                <div className="chat-msg assistant pipeline-live">
-                  <ChatPipeline
-                    trace={liveTrace}
-                    activeStage={liveStage}
-                    live
-                    question={
-                      [...messages].reverse().find((x) => x.role === "user")?.content
-                    }
-                  />
+          <div className="chat-thread">
+            {messages.length === 0 && !waiting ? (
+              <div className="chat-empty">
+                <div style={{ fontSize: 40 }}>💬</div>
+                <div>
+                  Ask a question about <strong>{meta.ontology.title}</strong> —
+                  the reference ontology of the project {project.name}.
                 </div>
-              )}
-            </>
-          )}
+                <div className="chat-suggestions">
+                  {suggestions.map((s) => (
+                    <button key={s} onClick={() => void send(s)}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                {messages.map((m, i) =>
+                  m.role === "user" ? (
+                    <div key={i} className="chat-msg user">
+                      {m.content}
+                    </div>
+                  ) : (
+                    <div
+                      key={i}
+                      className={`chat-msg assistant${
+                        expert && m.trace ? " with-pipe" : ""
+                      }`}
+                    >
+                      {expert && m.trace ? (
+                        <ChatPipeline
+                          trace={m.trace}
+                          activeStage={null}
+                          live={false}
+                          citations={m.citations}
+                          answerHtml={linkifyIris(renderMarkdown(m.content), resolveIri)}
+                          sparqlFailed={m.sparqlFailed}
+                          question={
+                            messages[i - 1]?.role === "user"
+                              ? messages[i - 1].content
+                              : undefined
+                          }
+                          onPeek={requestGraphFocus}
+                          resolveIri={resolveIri}
+                        />
+                      ) : (
+                        <>
+                          {m.sparqlFailed && (
+                            <div className="sparql-failed-note">
+                              ⚠️ The structural query could not be executed — this
+                              answer relies on retrieved concept descriptions only.
+                            </div>
+                          )}
+                          <div
+                            onClick={onAnswerClick}
+                            dangerouslySetInnerHTML={{
+                              __html: linkifyIris(renderMarkdown(m.content), resolveIri),
+                            }}
+                          />
+                          {m.citations && m.citations.length > 0 && (
+                            <div className="chat-citations">
+                              {m.citations.map((c) => (
+                                <span
+                                  key={c.iri}
+                                  className="chat-chip clickable"
+                                  title={`${c.iri} — click to show in the graph`}
+                                  onClick={() => requestGraphFocus({ iri: c.iri })}
+                                >
+                                  {c.label}
+                                  <span className="chip-module">{c.module}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )
+                )}
+                {waiting &&
+                  (expert ? (
+                    liveTrace && (
+                      <div className="chat-msg assistant pipeline-live">
+                        <ChatPipeline
+                          trace={liveTrace}
+                          activeStage={liveStage}
+                          live
+                          question={
+                            [...messages].reverse().find((x) => x.role === "user")
+                              ?.content
+                          }
+                        />
+                      </div>
+                    )
+                  ) : (
+                    <div className="chat-msg assistant thinking-msg">
+                      <ThinkingTicker startedAt={startedAt} />
+                    </div>
+                  ))}
+              </>
+            )}
+          </div>
         </div>
 
         {wsOntos.length > 0 && (
@@ -524,7 +648,9 @@ export default function ChatTab() {
               Context{ctxSel.size > 0 && ` (+${ctxSel.size})`}
             </span>
             <div className="ctx-chips">
-            <span className="ctx-chip fixed">Digital Reference</span>
+            <span className="ctx-chip fixed" title="The project reference is always in the context">
+              ★ {meta.ontology.title}
+            </span>
             {wsOntos.map((o) => {
               const short = o.name.replace(/\.[^.]+$/, "");
               const on = ctxSel.has(o.id);
@@ -535,7 +661,7 @@ export default function ChatTab() {
                   title={
                     on
                       ? "Remove this linked ontology from the chat context"
-                      : "Answers will also use this linked ontology (with its DR links)"
+                      : "Answers will also use this linked ontology (with its reference links)"
                   }
                   onClick={() =>
                     setCtxSel((prev) => {

@@ -689,13 +689,14 @@ button:focus-visible {
 /* Onglet ChatBot                                                      */
 /* ------------------------------------------------------------------ */
 
+/* La colonne de lecture est centrée par les enfants (voir .chat-thread &
+   consorts) et non par ce conteneur : seule la zone défilante prend toute la
+   largeur, pour que sa barre de défilement tombe au bord droit de la fenêtre. */
 .chat-layout {
   display: flex;
   flex-direction: column;
   height: 100%;
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 14px;
+  padding: 14px 0;
   gap: 10px;
 }
 
@@ -717,8 +718,31 @@ button:focus-visible {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 6px 2px;
+  padding: 6px 0;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 32%, transparent)
+    transparent;
+}
+
+.chat-scroll::-webkit-scrollbar {
+  width: 11px;
+}
+
+.chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-muted) 32%, transparent);
+  background-clip: content-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-muted) 62%, transparent);
+  background-clip: content-box;
 }
 
 .chat-msg {
@@ -955,21 +979,6 @@ button:focus-visible {
   background: transparent;
   border: none;
   padding: 0;
-}
-
-.hint-nav {
-  position: absolute;
-  bottom: 10px;
-  left: 12px;
-  z-index: 30;
-  max-width: 60%;
-  font-size: 11px;
-  color: var(--text-muted);
-  background: color-mix(in srgb, var(--surface-1) 85%, transparent);
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  padding: 4px 10px;
-  pointer-events: none;
 }
 
 /* --- Chatbot : citations et requête SPARQL utilisée ----------------- */
@@ -2524,7 +2533,7 @@ button:focus-visible {
 /* --- Mode Split : extraction structurelle exportable (bas gauche) ---- */
 .split-launch {
   position: absolute;
-  bottom: 64px; /* au-dessus de l'aide navigation (hint-nav, bas gauche) */
+  bottom: 14px;
   left: 14px;
   z-index: 30;
   border: 1px solid var(--hairline);
@@ -2546,7 +2555,7 @@ button:focus-visible {
 
 .split-box {
   position: absolute;
-  bottom: 64px; /* au-dessus de l'aide navigation (hint-nav, bas gauche) */
+  bottom: 14px;
   left: 14px;
   z-index: 31;
   width: 256px;
@@ -2922,4 +2931,513 @@ button:focus-visible {
 
 .panel-resizer:focus-visible {
   outline: none;
+}
+
+/* --- Chatbot : mode expert & attente « mode simple » ------------------ */
+.chat-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.expert-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px 3px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--surface-1);
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.expert-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.expert-toggle.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.expert-toggle input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Attente en mode simple : un mot qui tourne, façon terminal */
+.chat-msg.assistant.thinking-msg {
+  background: transparent;
+  border-color: transparent;
+  padding: 6px 4px;
+}
+
+.thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+}
+
+.thinking-orb {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 var(--accent);
+  animation: thinking-pulse 1.5s ease-out infinite;
+  flex: none;
+}
+
+@keyframes thinking-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+    transform: scale(0.85);
+  }
+  70% {
+    box-shadow: 0 0 0 8px transparent;
+    transform: scale(1.1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    transform: scale(0.85);
+  }
+}
+
+.thinking-word {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: linear-gradient(
+    90deg,
+    var(--text-muted) 0%,
+    var(--accent) 35%,
+    var(--text-muted) 70%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: thinking-shimmer 2.2s linear infinite,
+    thinking-in 0.32s ease-out both;
+}
+
+@keyframes thinking-shimmer {
+  from {
+    background-position: 110% 0;
+  }
+  to {
+    background-position: -110% 0;
+  }
+}
+
+@keyframes thinking-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.thinking-secs {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-orb,
+  .thinking-word {
+    animation: none;
+  }
+  .thinking-word {
+    color: var(--accent);
+    -webkit-text-fill-color: var(--accent);
+  }
+}
+
+/* --- Chatbot : colonne de lecture centrée, défilement pleine largeur -- */
+.chat-thread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 860 px de contenu + 2 × 14 px de marge intérieure (box-sizing: border-box) */
+.chat-thread,
+.chat-banner,
+.ctx-bar,
+.chat-input-row {
+  width: 100%;
+  max-width: 888px;
+  margin-inline: auto;
+  padding-inline: 14px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Projets : sélecteur d'en-tête, garde-fous, workspace multi-projets  */
+/* ------------------------------------------------------------------ */
+
+.project-picker {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.pp-button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 9px 5px 7px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+  max-width: 300px;
+  text-align: left;
+}
+
+.pp-button:hover,
+.pp-button.open {
+  border-color: var(--accent);
+  background: var(--surface-1);
+}
+
+.pp-badge {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.pp-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.pp-name {
+  font-size: 13px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-ref {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-ref.none {
+  color: var(--warning-border);
+}
+
+.pp-chevron {
+  margin-left: auto;
+  padding-left: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.pp-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  min-width: 280px;
+  max-width: 380px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 5px;
+  background: var(--surface-1);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+}
+
+.pp-menu-head {
+  padding: 4px 8px 6px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+
+.pp-empty {
+  padding: 6px 8px 10px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.pp-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pp-item:hover {
+  background: var(--surface-3);
+}
+
+.pp-item.active {
+  background: var(--accent-soft);
+}
+
+.pp-item-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pp-check {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.pp-item-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.pp-item-ref {
+  color: var(--accent);
+}
+
+.pp-manage {
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 8px;
+  border: none;
+  border-top: 1px solid var(--hairline);
+  border-radius: 0 0 8px 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pp-manage:hover {
+  color: var(--text-primary);
+  background: var(--surface-3);
+}
+
+/* Écran d'attente quand l'action demandée exige une référence ---------- */
+.gate {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 40px 24px;
+  color: var(--text-secondary);
+}
+
+.gate-icon {
+  font-size: 44px;
+}
+
+.gate h2 {
+  margin: 0;
+  font-size: 17px;
+  color: var(--text-primary);
+}
+
+.gate p {
+  margin: 0;
+  max-width: 520px;
+  font-size: 13.5px;
+}
+
+.gate-hint {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-style: italic;
+}
+
+.gate .ws-btn {
+  margin-top: 8px;
+}
+
+/* En-tête de projet dans le Workspace --------------------------------- */
+.ws-project-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.ws-icon-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 4px;
+  border-radius: 5px;
+}
+
+.ws-icon-btn:hover {
+  color: var(--text-primary);
+  background: var(--surface-3);
+}
+
+.ws-noref {
+  color: var(--warning-border);
+}
+
+.ws-ref-chip {
+  color: var(--accent);
+}
+
+/* Bandeau des ontologies du projet ------------------------------------ */
+.ws-onto-strip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.ws-onto-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 7px 11px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+  max-width: 260px;
+}
+
+.ws-onto-card:hover {
+  border-color: var(--accent);
+}
+
+.ws-onto-card.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ws-onto-card.reference {
+  border-left: 3px solid var(--accent);
+}
+
+.ws-onto-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-star {
+  color: var(--accent);
+  margin-right: 4px;
+}
+
+.ws-onto-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Dépendances --------------------------------------------------------- */
+.ws-deps {
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--surface-2);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ws-deps-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.ws-deps-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+
+.ws-deps-list .check-row {
+  font-size: 12.5px;
+}
+
+.ws-deps-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ws-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-secondary);
+}
+
+/* Ontologies qui composent la référence (dépendances incluses) ---------- */
+.ws-dep-mark {
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+.ws-dep-note {
+  color: var(--text-muted);
+}
+
+/* Référence figée : des alignements pointent déjà vers elle -------------- */
+.ws-locked {
+  color: var(--text-secondary);
+  font-size: 12px;
 }

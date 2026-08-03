@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 /* Persistance des conversations du chatbot : SQLite natif de Node     */
 /* (node:sqlite, aucune dépendance). Base dans analysis/.data/,        */
 /* git-ignorée, survit aux redémarrages du backend et du frontend.     */
+/* Chaque conversation appartient à un projet.                         */
 /* ------------------------------------------------------------------ */
 
 // node:sqlite est expérimental : pas encore dans @types/node → import non typé
@@ -28,9 +29,17 @@ db.exec(`
     data          TEXT NOT NULL
   )
 `);
+// Colonne projet ajoutée aux bases créées avant les projets (migration douce).
+{
+  const cols = db.prepare(`PRAGMA table_info(chats)`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === "project_id")) {
+    db.exec(`ALTER TABLE chats ADD COLUMN project_id TEXT`);
+  }
+}
 
 export interface ChatSummary {
   id: string;
+  projectId: string;
   title: string;
   createdAt: number;
   updatedAt: number;
@@ -55,14 +64,15 @@ function titleFrom(messages: unknown[]): string {
   return "New conversation";
 }
 
-export function listChats(): ChatSummary[] {
+export function listChats(projectId: string): ChatSummary[] {
   const rows = db
     .prepare(
-      `SELECT id, title, created_at, updated_at, message_count
-       FROM chats ORDER BY updated_at DESC`
+      `SELECT id, project_id, title, created_at, updated_at, message_count
+       FROM chats WHERE project_id = ? ORDER BY updated_at DESC`
     )
-    .all() as {
+    .all(projectId) as {
     id: string;
+    project_id: string;
     title: string;
     created_at: number;
     updated_at: number;
@@ -70,6 +80,7 @@ export function listChats(): ChatSummary[] {
   }[];
   return rows.map((r) => ({
     id: r.id,
+    projectId: r.project_id,
     title: r.title,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -81,12 +92,13 @@ export function getChat(id: string): StoredChat | null {
   if (!VALID_ID.test(id)) return null;
   const row = db
     .prepare(
-      `SELECT id, title, created_at, updated_at, message_count, data
+      `SELECT id, project_id, title, created_at, updated_at, message_count, data
        FROM chats WHERE id = ?`
     )
     .get(id) as
     | {
         id: string;
+        project_id: string | null;
         title: string;
         created_at: number;
         updated_at: number;
@@ -103,6 +115,7 @@ export function getChat(id: string): StoredChat | null {
   }
   return {
     id: row.id,
+    projectId: row.project_id ?? "",
     title: row.title,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -111,20 +124,25 @@ export function getChat(id: string): StoredChat | null {
   };
 }
 
-export function saveChat(id: string, messages: unknown[]): StoredChat | null {
+export function saveChat(
+  id: string,
+  projectId: string,
+  messages: unknown[]
+): StoredChat | null {
   if (!VALID_ID.test(id) || !Array.isArray(messages)) return null;
   const now = Date.now();
   const title = titleFrom(messages);
   const data = JSON.stringify(messages);
   db.prepare(
-    `INSERT INTO chats (id, title, created_at, updated_at, message_count, data)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO chats (id, project_id, title, created_at, updated_at, message_count, data)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
+       project_id = excluded.project_id,
        title = excluded.title,
        updated_at = excluded.updated_at,
        message_count = excluded.message_count,
        data = excluded.data`
-  ).run(id, title, now, now, messages.length, data);
+  ).run(id, projectId, title, now, now, messages.length, data);
   return getChat(id);
 }
 
@@ -134,7 +152,7 @@ export function deleteChat(id: string): boolean {
   return Number(res.changes) > 0;
 }
 
-export function clearChats(): number {
-  const res = db.prepare(`DELETE FROM chats`).run();
+export function clearChats(projectId: string): number {
+  const res = db.prepare(`DELETE FROM chats WHERE project_id = ?`).run(projectId);
   return Number(res.changes);
 }

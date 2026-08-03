@@ -43,7 +43,17 @@ export interface LobeInfo {
   classCount: number;
 }
 
+export interface MetaFile {
+  ontologyId: string;
+  name: string;
+  size: number;
+  role: "reference" | "dependency";
+}
+
+/** Métadonnées de la RÉFÉRENCE du projet courant (référence + dépendances). */
 export interface Meta {
+  project: { id: string; name: string };
+  reference: { ontologyId: string; name: string };
   ontology: {
     title: string;
     description: string;
@@ -54,8 +64,10 @@ export interface Meta {
   counts: { classes: number; objectProperties: number; datatypeProperties: number };
   modules: ModuleInfo[];
   lobes: LobeInfo[];
+  /** Libellé du regroupement de haut niveau : « Lobes » ou « Groups » */
+  groupLabel: string;
   prefixes: Record<string, string>;
-  files: { name: string; path: string; size: number }[];
+  files: MetaFile[];
 }
 
 /* Résultats SPARQL */
