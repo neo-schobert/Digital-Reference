@@ -53,6 +53,101 @@ import {
 /* ------------------------------------------------------------------ */
 
 const MAX_CLASSES = 300;
+const EXTERNAL_SIM_BASE = (process.env.DR_SIMILARITY_BASE_URL ?? "").replace(/\/+$/, "");
+const EXTERNAL_SIM_TIMEOUT_MS = Number(process.env.DR_SIMILARITY_TIMEOUT_MS ?? 45000);
+
+function similarityWsId(projectId: string, ontologyId: string): string {
+  return `${projectId}__${ontologyId}`;
+}
+
+async function simFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  if (!EXTERNAL_SIM_BASE) throw new Error("External similarity backend is not configured");
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), EXTERNAL_SIM_TIMEOUT_MS);
+  try {
+    return await fetch(`${EXTERNAL_SIM_BASE}${path}`, {
+      ...init,
+      signal: ctl.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(init.headers ?? {}),
+      },
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function ensureExternalOntology(projectId: string, id: string): Promise<string> {
+  const wsId = similarityWsId(projectId, id);
+  const src = ontologySource(id);
+  const res = await simFetch(`/api/workspace/ontologies`, {
+    method: "POST",
+    body: JSON.stringify({ id: wsId, name: src.name, content: src.content }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`external import failed: ${res.status} ${detail}`);
+  }
+  return wsId;
+}
+
+async function compareToReferenceExternal(
+  projectId: string,
+  id: string
+): Promise<CompareReport> {
+  const wsId = await ensureExternalOntology(projectId, id);
+  const res = await simFetch(`/api/workspace/ontologies/${encodeURIComponent(wsId)}/compare`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`external compare failed: ${res.status} ${detail}`);
+  }
+  return (await res.json()) as CompareReport;
+}
+
+async function mapToReferenceExternal(projectId: string, id: string): Promise<MappingReport> {
+  const wsId = await ensureExternalOntology(projectId, id);
+  const mapRes = await simFetch(`/api/workspace/ontologies/${encodeURIComponent(wsId)}/map`, {
+    method: "POST",
+  });
+  if (!mapRes.ok) {
+    const detail = await mapRes.text().catch(() => "");
+    throw new Error(`external map failed: ${mapRes.status} ${detail}`);
+  }
+  const report = (await mapRes.json()) as MappingReport;
+
+  const ttlRes = await simFetch(`/api/workspace/ontologies/${encodeURIComponent(wsId)}/mapped.ttl`, {
+    method: "GET",
+    headers: {},
+  });
+  if (!ttlRes.ok) {
+    const detail = await ttlRes.text().catch(() => "");
+    throw new Error(`external mapped.ttl failed: ${ttlRes.status} ${detail}`);
+  }
+  const mapped = await ttlRes.text();
+  loadStore(mapped, "ttl");
+  writeFileSync(join(WS_DIR, `${id}-mapped.ttl`), mapped, "utf8");
+
+  const sssomRes = await simFetch(`/api/workspace/ontologies/${encodeURIComponent(wsId)}/mappings.sssom.tsv`, {
+    method: "GET",
+    headers: {},
+  });
+  if (!sssomRes.ok) {
+    const detail = await sssomRes.text().catch(() => "");
+    throw new Error(`external sssom failed: ${sssomRes.status} ${detail}`);
+  }
+  const sssom = await sssomRes.text();
+  writeFileSync(join(WS_DIR, `${id}-mappings.sssom.tsv`), sssom, "utf8");
+  wsGraphCache.delete(`${id}:mapped`);
+
+  return {
+    ...report,
+    file: `${id}-mapped.ttl`,
+    sssomFile: `${id}-mappings.sssom.tsv`,
+  };
+}
 
 /**
  * Ontologie du projet à aligner. Refusée si elle fait partie de la
@@ -570,6 +665,17 @@ export async function compareToReference(
   id: string
 ): Promise<CompareReport> {
   loadTarget(projectId, id);
+
+  if (EXTERNAL_SIM_BASE) {
+    try {
+      const report = await compareToReferenceExternal(projectId, id);
+      saveResult(id, "compare", report);
+      return report;
+    } catch (e) {
+      console.warn(`[workspace] external similarity compare failed, falling back to local: ${(e as Error).message}`);
+    }
+  }
+
   const { classes } = loadImported(id);
   const { perClass, truncated } = await bestRefMatches(projectId, classes, id);
   const buckets = { strong: 0, medium: 0, weak: 0 };
@@ -880,6 +986,17 @@ export async function mapToReference(
   id: string
 ): Promise<MappingReport> {
   loadTarget(projectId, id);
+
+  if (EXTERNAL_SIM_BASE) {
+    try {
+      const report = await mapToReferenceExternal(projectId, id);
+      saveResult(id, "mapping", report);
+      return report;
+    } catch (e) {
+      console.warn(`[workspace] external similarity map failed, falling back to local: ${(e as Error).message}`);
+    }
+  }
+
   const ref = getReference(projectId);
   const refTitle = ref.meta.ontology.title;
   const { classes, content, name, ext, store } = loadImported(id);
