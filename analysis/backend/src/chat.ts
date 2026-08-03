@@ -1,11 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
-  PREFIXES,
+  BuiltReference,
   chatStub,
-  getFullGraph,
+  getReference,
   runSparql,
 } from "./ontology.js";
+import { onProjectInvalidated } from "./projects.js";
 
 /* ------------------------------------------------------------------ */
 /* Moteur GraphRAG du chatbot                                          */
@@ -14,6 +15,9 @@ import {
 /*   3. routeur LLM : question de compréhension vs structurelle        */
 /*   4. structurelle → génération SPARQL + boucle de correction        */
 /*   5. réponse groundée sur le contexte, avec citations               */
+/*                                                                     */
+/* Tout est relatif à la RÉFÉRENCE DU PROJET courant : un projet sans  */
+/* référence n'a pas de chatbot (les routes renvoient 409).            */
 /* ------------------------------------------------------------------ */
 
 /* ---------------------- Configuration (.env) ---------------------- */
@@ -42,6 +46,8 @@ const CFG = {
 
 const configured = () =>
   CFG.apiKey.length > 10 && !CFG.apiKey.includes("PASTE_YOUR_KEY");
+
+export const chatConfigured = configured;
 
 /* --------------------------- Types API ----------------------------- */
 
@@ -82,7 +88,7 @@ async function openRouter(path: string, body: unknown): Promise<any> {
         Authorization: `Bearer ${CFG.apiKey}`,
         "Content-Type": "application/json",
         "HTTP-Referer": "http://localhost",
-        "X-Title": "Digital Reference Explorer",
+        "X-Title": "Ontology Explorer",
       },
       body: JSON.stringify(body),
     });
@@ -134,13 +140,6 @@ async function embed(inputs: string[]): Promise<number[][]> {
 
 /* ------------------- Fiches (verbalisation TBox) ------------------- */
 
-function shrink(iri: string): string {
-  for (const [p, ns] of Object.entries(PREFIXES)) {
-    if (iri.startsWith(ns)) return `${p}:${iri.slice(ns.length)}`;
-  }
-  return `<${iri}>`;
-}
-
 export interface Card {
   iri: string;
   label: string;
@@ -150,9 +149,11 @@ export interface Card {
   tokens: Set<string>; // index lexical
 }
 
-let cards: Card[] = [];
-let cardByIri = new Map<string, Card>();
-let neighborNames = new Map<string, string[]>(); // IRI classe -> voisins (labels)
+/** Index additionnel (ontologies importées sélectionnées dans le chat). */
+export interface ExtraIndex {
+  cards: Card[];
+  vectors: Float32Array[];
+}
 
 export function tokenize(s: string): string[] {
   return s
@@ -162,8 +163,16 @@ export function tokenize(s: string): string[] {
     .filter((w) => w.length >= 3);
 }
 
-function buildCards(): void {
-  const { nodes, links } = getFullGraph();
+interface ChatIndex {
+  ref: BuiltReference;
+  cards: Card[];
+  cardByIri: Map<string, Card>;
+  neighborNames: Map<string, string[]>;
+  vectors: Float32Array[] | null;
+}
+
+function buildCards(ref: BuiltReference): Omit<ChatIndex, "vectors"> {
+  const { nodes, links } = ref.graph;
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
   const supers = new Map<string, string[]>();
   const subs = new Map<string, string[]>();
@@ -201,12 +210,13 @@ function buildCards(): void {
     }
   }
 
+  const groupWord = ref.meta.groupLabel;
   const list: Card[] = [];
   for (const n of nodes) {
     const parts: string[] = [];
-    parts.push(`Class: ${n.label} (${shrink(n.id)})`);
+    parts.push(`Class: ${n.label} (${ref.shrink(n.id)})`);
     parts.push(
-      `Module: ${n.module}${n.lobes.length ? ` | Lobes: ${n.lobes.join(", ")}` : ""}`
+      `Module: ${n.module}${n.lobes.length ? ` | ${groupWord}: ${n.lobes.join(", ")}` : ""}`
     );
     if (n.comment) parts.push(`Definition: ${n.comment}`);
     if (supers.has(n.id)) parts.push(`Superclasses: ${supers.get(n.id)!.join(", ")}`);
@@ -220,47 +230,39 @@ function buildCards(): void {
           .map((a) => `${a.label}${a.range ? ` (${a.range})` : ""}`)
           .join(", ")}`
       );
-    const text = parts.join("\n");
     list.push({
       iri: n.id,
       label: n.label,
       module: n.module,
       kind: "class",
-      text,
+      text: parts.join("\n"),
       tokens: new Set(tokenize(`${n.label} ${n.id} ${n.comment ?? ""}`)),
     });
   }
   for (const [iri, { label, pairs }] of propPairs) {
-    const text = `Object property: ${label} (${shrink(iri)})\nConnects: ${pairs.join("; ")}`;
     list.push({
       iri,
       label,
-      module: moduleName(iri),
+      module: ref.moduleOf(iri).module,
       kind: "property",
-      text,
+      text: `Object property: ${label} (${ref.shrink(iri)})\nConnects: ${pairs.join("; ")}`,
       tokens: new Set(tokenize(`${label} ${iri}`)),
     });
   }
 
-  cards = list;
-  cardByIri = new Map(list.map((c) => [c.iri, c]));
-  neighborNames = new Map(
-    [...neigh.entries()].map(([iri, set]) => [iri, [...set]])
-  );
-}
-
-function moduleName(iri: string): string {
-  const m = iri.match(/ecsel-dr(?:-([A-Za-z0-9-]+))?#/);
-  return m ? m[1] ?? "Core" : "External";
+  return {
+    ref,
+    cards: list,
+    cardByIri: new Map(list.map((c) => [c.iri, c])),
+    neighborNames: new Map([...neigh.entries()].map(([iri, set]) => [iri, [...set]])),
+  };
 }
 
 /* ---------------- Index embeddings (cache disque) ------------------ */
 
 const CACHE_DIR = join(ANALYSIS_ROOT, ".cache");
-let vectors: Float32Array[] | null = null;
-let indexPromise: Promise<void> | null = null;
 
-function cacheHash(): string {
+function cacheHash(cards: Card[]): string {
   // Basé sur les IRIs (triés) et non le texte des fiches : l'ordre des
   // résultats SPARQL n'est pas déterministe, le texte varie d'un démarrage
   // à l'autre alors que le contenu sémantique est identique.
@@ -270,37 +272,110 @@ function cacheHash(): string {
   return `${h.toString(16)}-${cards.length}`;
 }
 
-async function ensureIndex(): Promise<void> {
-  if (vectors) return;
-  if (!indexPromise) {
-    indexPromise = (async () => {
-      if (cards.length === 0) buildCards();
-      const texts = cards.map((c) => c.text);
-      const hash = cacheHash();
+/* Le cache disque garde l'IRI de chaque fiche à côté de son vecteur :
+   l'ordre des résultats SPARQL n'est pas garanti d'un chargement à l'autre,
+   et un simple tableau finirait par associer le mauvais vecteur à la
+   mauvaise classe (matchs incohérents dans le mapping). */
+interface EmbeddingCache {
+  v: 2;
+  model: string;
+  iris: string[];
+  vectors: number[][];
+}
+
+function readCache(path: string, cards: Card[]): Float32Array[] | null {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
+  if (Array.isArray(raw)) {
+    // Format hérité : un tableau de vecteurs dans l'ordre des fiches. Il
+    // n'est exploitable que si le nombre de fiches correspond ; on le
+    // ré-écrit aussitôt au format indexé par IRI.
+    if (raw.length !== cards.length) return null;
+    const vectors = (raw as number[][]).map((v) => Float32Array.from(v));
+    writeCache(path, cards, raw as number[][]);
+    return vectors;
+  }
+  const cache = raw as EmbeddingCache;
+  if (!cache || cache.v !== 2 || !Array.isArray(cache.iris)) return null;
+  const byIri = new Map(cache.iris.map((iri, i) => [iri, cache.vectors[i]]));
+  const out: Float32Array[] = [];
+  for (const c of cards) {
+    const v = byIri.get(c.iri);
+    if (!v) return null; // fiche inconnue du cache : recalcul complet
+    out.push(Float32Array.from(v));
+  }
+  return out;
+}
+
+function writeCache(path: string, cards: Card[], vectors: number[][]): void {
+  mkdirSync(CACHE_DIR, { recursive: true });
+  const payload: EmbeddingCache = {
+    v: 2,
+    model: CFG.modelEmbed,
+    iris: cards.map((c) => c.iri),
+    vectors: vectors.map((v) => v.map((x) => Math.round(x * 1e5) / 1e5)),
+  };
+  writeFileSync(path, JSON.stringify(payload));
+}
+
+const indexes = new Map<string, ChatIndex>();
+const embedding = new Map<string, Promise<void>>();
+
+/** Index du chatbot pour un projet (fiches + embeddings, construits une fois). */
+export function projectIndex(projectId: string): ChatIndex {
+  const hit = indexes.get(projectId);
+  if (hit) return hit;
+  const index: ChatIndex = { ...buildCards(getReference(projectId)), vectors: null };
+  indexes.set(projectId, index);
+  return index;
+}
+
+async function ensureVectors(projectId: string): Promise<ChatIndex> {
+  const index = projectIndex(projectId);
+  if (index.vectors) return index;
+  let pending = embedding.get(projectId);
+  if (!pending) {
+    pending = (async () => {
+      const hash = cacheHash(index.cards);
       const cachePath = join(CACHE_DIR, `chat-embeddings-${hash}.json`);
       if (existsSync(cachePath)) {
-        const raw = JSON.parse(readFileSync(cachePath, "utf8")) as number[][];
-        vectors = raw.map((v) => Float32Array.from(v));
-        console.log(`[chat] ${vectors.length} embeddings chargés depuis le cache`);
-        return;
+        const loaded = readCache(cachePath, index.cards);
+        if (loaded) {
+          index.vectors = loaded;
+          console.log(`[chat] ${loaded.length} embeddings chargés depuis le cache`);
+          return;
+        }
+        console.warn(`[chat] cache d'embeddings inutilisable — recalcul`);
       }
-      console.log(`[chat] calcul des embeddings (${texts.length} fiches, ${CFG.modelEmbed})…`);
-      const t0 = Date.now();
-      const embs = await embed(texts);
-      vectors = embs.map((v) => Float32Array.from(v));
-      mkdirSync(CACHE_DIR, { recursive: true });
-      writeFileSync(
-        cachePath,
-        JSON.stringify(embs.map((v) => v.map((x) => Math.round(x * 1e5) / 1e5)))
+      console.log(
+        `[chat] calcul des embeddings (${index.cards.length} fiches, ${CFG.modelEmbed})…`
       );
-      console.log(`[chat] embeddings prêts en ${Math.round((Date.now() - t0) / 1000)} s (cache: ${cachePath})`);
+      const t0 = Date.now();
+      const embs = await embed(index.cards.map((c) => c.text));
+      index.vectors = embs.map((v) => Float32Array.from(v));
+      writeCache(cachePath, index.cards, embs);
+      console.log(
+        `[chat] embeddings prêts en ${Math.round((Date.now() - t0) / 1000)} s (cache: ${cachePath})`
+      );
     })().catch((e) => {
-      indexPromise = null; // permettre une nouvelle tentative
+      embedding.delete(projectId); // permettre une nouvelle tentative
       throw e;
     });
+    embedding.set(projectId, pending);
   }
-  return indexPromise;
+  await pending;
+  return index;
 }
+
+function invalidateChatIndex(projectId: string): void {
+  indexes.delete(projectId);
+  embedding.delete(projectId);
+}
+onProjectInvalidated(invalidateChatIndex);
 
 function cosine(a: Float32Array, b: Float32Array): number {
   let dot = 0;
@@ -314,6 +389,18 @@ function cosine(a: Float32Array, b: Float32Array): number {
   return dot / (Math.sqrt(na) * Math.sqrt(nb) || 1);
 }
 
+/* ---- Accès pour le module workspace (comparaison / mapping) -------- */
+
+export async function referenceIndex(projectId: string): Promise<{
+  cards: Card[];
+  vectors: Float32Array[];
+}> {
+  const index = await ensureVectors(projectId);
+  return { cards: index.cards, vectors: index.vectors! };
+}
+
+export { embed as embedTexts, llm as llmCall, cosine, CFG as chatConfig };
+
 /* ---------------------- Retrieval hybride -------------------------- */
 
 interface ScoredCandidate {
@@ -324,17 +411,18 @@ interface ScoredCandidate {
 }
 
 function retrieve(
+  index: ChatIndex,
   question: string,
   qv: Float32Array | null,
   extra: ExtraIndex | null,
   k = 12
 ): { top: Card[]; scored: ScoredCandidate[]; poolSize: number } {
-  if (cards.length === 0) buildCards();
-  const pool = extra ? [...cards, ...extra.cards] : cards;
+  const base = index.cards;
+  const pool = extra ? [...base, ...extra.cards] : base;
   const vecAt = (i: number): Float32Array | null =>
-    i < cards.length
-      ? (vectors?.[i] ?? null)
-      : (extra!.vectors[i - cards.length] ?? null);
+    i < base.length
+      ? (index.vectors?.[i] ?? null)
+      : (extra!.vectors[i - base.length] ?? null);
   const qTokens = tokenize(question);
 
   // Score lexical : recouvrement de tokens + bonus label exact
@@ -368,24 +456,35 @@ function retrieve(
 
 /* --------------------------- Prompts ------------------------------- */
 
-const PREFIX_HEADER = Object.entries(PREFIXES)
-  .map(([p, ns]) => `PREFIX ${p}: <${ns}>`)
-  .join("\n");
+/** Description courte de l'ontologie de référence, injectée dans les prompts. */
+function refName(index: ChatIndex): string {
+  return index.ref.meta.ontology.title;
+}
 
-function contextBlock(retrieved: Card[]): string {
+function refIntro(index: ChatIndex): string {
+  const { title, description } = index.ref.meta.ontology;
+  const desc = description ? ` — ${description.replace(/\s+/g, " ").slice(0, 300)}` : "";
+  return `"${title}", an OWL/RDFS ontology${desc}`;
+}
+
+function contextBlock(index: ChatIndex, retrieved: Card[]): string {
   const blocks = retrieved.map((c) => c.text);
   // Voisinage 1 saut des meilleures classes : donne au LLM la structure locale
   for (const c of retrieved.slice(0, 4)) {
-    const nb = neighborNames.get(c.iri);
+    const nb = index.neighborNames.get(c.iri);
     if (nb?.length) blocks.push(`Neighbors of ${c.label}: ${nb.join(", ")}`);
   }
   return blocks.join("\n---\n");
 }
 
-async function routeQuestion(question: string, history: string): Promise<string> {
+async function routeQuestion(
+  index: ChatIndex,
+  question: string,
+  history: string
+): Promise<string> {
   const sys =
-    "You classify user questions about an OWL ontology (the Digital Reference, " +
-    "semiconductor supply chains). Reply with STRICT JSON only: " +
+    `You classify user questions about an OWL ontology (${refIntro(index)}). ` +
+    "Reply with STRICT JSON only: " +
     '{"route":"lookup"} or {"route":"structural"} or {"route":"graph"}. ' +
     'Use "structural" when answering requires a SPARQL query: counting, ' +
     "exhaustive lists (\"all subclasses of…\"), which classes use a property, " +
@@ -405,13 +504,30 @@ async function routeQuestion(question: string, history: string): Promise<string>
   }
 }
 
+/** Indice sur les groupes de haut niveau, seulement si la référence en a. */
+function groupHint(index: ChatIndex): string {
+  const { lobes, groupLabel } = index.ref.meta;
+  if (lobes.length === 0) return "";
+  const sample = lobes
+    .slice(0, 4)
+    .map((l) => index.ref.shrink(l.iri))
+    .join(", ");
+  return (
+    `- This ontology groups classes into ${lobes.length} top-level ` +
+    `${groupLabel.toLowerCase()} (e.g. ${sample}). Membership of a class in ` +
+    "one of them is expressed as ?c rdfs:subClassOf* <group IRI>. To " +
+    "intersect two of them, combine two such patterns on the same ?c.\n"
+  );
+}
+
 async function generateSparql(
+  index: ChatIndex,
   question: string,
   retrieved: Card[],
   emit: ChatEmit
 ): Promise<{ sparql: string; results: string } | null> {
   const sys =
-    "You translate a question about the Digital Reference OWL ontology into ONE " +
+    `You translate a question about the ${refName(index)} OWL ontology into ONE ` +
     "SPARQL 1.1 query for an oxigraph store that contains ONLY the ontology TBox " +
     "(classes, rdfs:subClassOf, owl:ObjectProperty with rdfs:domain/rdfs:range — " +
     "possibly through owl:unionOf lists —, owl:DatatypeProperty, rdfs:label, " +
@@ -424,14 +540,11 @@ async function generateSparql(
     "- For transitive hierarchy use rdfs:subClassOf+ or rdfs:subClassOf*.\n" +
     "- For domains/ranges also check the owl:unionOf pattern: " +
     "?p rdfs:domain/owl:unionOf/rdf:rest*/rdf:first ?c.\n" +
-    "- The DR groups classes into 'lobes': top-level classes named *_Lobe " +
-    "(e.g. dr:Supply_Chain_Lobe). Membership of a class in a lobe is " +
-    "expressed as ?c rdfs:subClassOf* dr:X_Lobe. To intersect two lobes, " +
-    "combine two such patterns on the same ?c.\n\n" +
-    `Declared prefixes:\n${PREFIX_HEADER}`;
+    groupHint(index) +
+    `\nDeclared prefixes:\n${index.ref.prefixHeader}`;
   const ctx = retrieved
     .slice(0, 8)
-    .map((c) => `${shrink(c.iri)} — ${c.label} (${c.kind})`)
+    .map((c) => `${index.ref.shrink(c.iri)} — ${c.label} (${c.kind})`)
     .join("\n");
 
   let feedback = "";
@@ -451,7 +564,7 @@ async function generateSparql(
     sparql = sparql.replace(/^```(?:sparql)?\s*/i, "").replace(/```\s*$/, "").trim();
     emit({ type: "sparql_attempt", attempt: attempt + 1, query: sparql });
     try {
-      const res = runSparql(PREFIX_HEADER + "\n" + sparql) as any;
+      const res = runSparql(index.ref, index.ref.prefixHeader + "\n" + sparql) as any;
       const rows = res?.results?.bindings ?? [];
       const isBool = res?.type === "boolean";
       emit({
@@ -498,9 +611,9 @@ async function generateSparql(
 /* (plus longue chaîne, plus court chemin, hubs) — calculés en JS sur le
    graphe en mémoire, exposés au LLM comme une 3e route.                  */
 
-function subclassChildren(): Map<string, string[]> {
+function subclassChildren(index: ChatIndex): Map<string, string[]> {
   const children = new Map<string, string[]>();
-  for (const l of getFullGraph().links) {
+  for (const l of index.ref.graph.links) {
     if (l.type !== "subclass") continue;
     if (!children.has(l.target)) children.set(l.target, []);
     children.get(l.target)!.push(l.source);
@@ -508,13 +621,13 @@ function subclassChildren(): Map<string, string[]> {
   return children;
 }
 
-function nodeLabel(iri: string): string {
-  const c = cardByIri.get(iri);
-  return c ? `${c.label} (${shrink(iri)})` : shrink(iri);
+function nodeLabel(index: ChatIndex, iri: string): string {
+  const c = index.cardByIri.get(iri);
+  return c ? `${c.label} (${index.ref.shrink(iri)})` : index.ref.shrink(iri);
 }
 
-function toolLongestChain(rootIri?: string): string {
-  const children = subclassChildren();
+function toolLongestChain(index: ChatIndex, rootIri?: string): string {
+  const children = subclassChildren(index);
   let best: string[] = [];
   const dfs = (node: string, path: string[]) => {
     if (path.length > best.length) best = [...path];
@@ -526,20 +639,20 @@ function toolLongestChain(rootIri?: string): string {
     dfs(rootIri, [rootIri]);
   } else {
     const hasParent = new Set(
-      getFullGraph().links.filter((l) => l.type === "subclass").map((l) => l.source)
+      index.ref.graph.links.filter((l) => l.type === "subclass").map((l) => l.source)
     );
-    for (const n of getFullGraph().nodes) if (!hasParent.has(n.id)) dfs(n.id, [n.id]);
+    for (const n of index.ref.graph.nodes) if (!hasParent.has(n.id)) dfs(n.id, [n.id]);
   }
   if (best.length <= 1) return "No subclass chain found under this root.";
   return (
     `Longest subClassOf chain: ${best.length} levels (computed exhaustively on the full hierarchy)\n` +
-    best.map(nodeLabel).join("\n  → subclass: ")
+    best.map((iri) => nodeLabel(index, iri)).join("\n  → subclass: ")
   );
 }
 
-function toolShortestPath(from: string, to: string): string {
+function toolShortestPath(index: ChatIndex, from: string, to: string): string {
   const adj = new Map<string, { next: string; via: string }[]>();
-  for (const l of getFullGraph().links) {
+  for (const l of index.ref.graph.links) {
     const via = l.type === "subclass" ? "subClassOf" : l.label ?? "property";
     if (!adj.has(l.source)) adj.set(l.source, []);
     if (!adj.has(l.target)) adj.set(l.target, []);
@@ -559,39 +672,43 @@ function toolShortestPath(from: string, to: string): string {
       queue.push(next);
     }
   }
-  if (!seen.has(to)) return `No path found between ${nodeLabel(from)} and ${nodeLabel(to)} in the ontology graph.`;
+  if (!seen.has(to))
+    return `No path found between ${nodeLabel(index, from)} and ${nodeLabel(index, to)} in the ontology graph.`;
   const steps: string[] = [];
   let cur = to;
   while (cur !== from) {
     const p = prev.get(cur)!;
-    steps.unshift(`—[${p.via}]→ ${nodeLabel(cur)}`);
+    steps.unshift(`—[${p.via}]→ ${nodeLabel(index, cur)}`);
     cur = p.from;
   }
-  return `Shortest path (${steps.length} hops):\n${nodeLabel(from)}\n${steps.join("\n")}`;
+  return `Shortest path (${steps.length} hops):\n${nodeLabel(index, from)}\n${steps.join("\n")}`;
 }
 
-function toolTopSubclasses(n = 10): string {
+function toolTopSubclasses(index: ChatIndex, n = 10): string {
   const counts = new Map<string, number>();
-  for (const l of getFullGraph().links) {
+  for (const l of index.ref.graph.links) {
     if (l.type !== "subclass") continue;
     counts.set(l.target, (counts.get(l.target) ?? 0) + 1);
   }
   const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
   return (
     `Classes with the most DIRECT subclasses (exhaustive count over the whole ontology):\n` +
-    sorted.map(([iri, c], i) => `${i + 1}. ${nodeLabel(iri)} — ${c} direct subclasses`).join("\n")
+    sorted
+      .map(([iri, c], i) => `${i + 1}. ${nodeLabel(index, iri)} — ${c} direct subclasses`)
+      .join("\n")
   );
 }
 
-function toolTopDegree(n = 10): string {
-  const sorted = [...getFullGraph().nodes].sort((a, b) => b.degree - a.degree).slice(0, n);
+function toolTopDegree(index: ChatIndex, n = 10): string {
+  const sorted = [...index.ref.graph.nodes].sort((a, b) => b.degree - a.degree).slice(0, n);
   return (
     `Most connected classes (degree = subclass + property edges):\n` +
-    sorted.map((x, i) => `${i + 1}. ${nodeLabel(x.id)} — degree ${x.degree}`).join("\n")
+    sorted.map((x, i) => `${i + 1}. ${nodeLabel(index, x.id)} — degree ${x.degree}`).join("\n")
   );
 }
 
 async function runGraphTool(
+  index: ChatIndex,
   question: string,
   retrieved: Card[],
   emit: ChatEmit
@@ -621,13 +738,13 @@ async function runGraphTool(
     emit({ type: "graph_tool", tool: spec.tool, args: spec });
     let detail: string;
     if (spec.tool === "longest_chain") {
-      detail = toolLongestChain((spec.root as string) || undefined);
+      detail = toolLongestChain(index, (spec.root as string) || undefined);
     } else if (spec.tool === "shortest_path") {
-      detail = toolShortestPath(String(spec.from), String(spec.to));
+      detail = toolShortestPath(index, String(spec.from), String(spec.to));
     } else if (spec.tool === "top_degree") {
-      detail = toolTopDegree(Number(spec.n) || 10);
+      detail = toolTopDegree(index, Number(spec.n) || 10);
     } else if (spec.tool === "top_subclasses") {
-      detail = toolTopSubclasses(Number(spec.n) || 10);
+      detail = toolTopSubclasses(index, Number(spec.n) || 10);
     } else {
       return null;
     }
@@ -639,32 +756,18 @@ async function runGraphTool(
   }
 }
 
-/* ---- Accès pour le module workspace (comparaison / mapping) ---------- */
-
-export async function drIndex(): Promise<{
-  cards: Card[];
-  vectors: Float32Array[];
-}> {
-  await ensureIndex();
-  return { cards, vectors: vectors! };
-}
-
-export { embed as embedTexts, llm as llmCall, cosine, CFG as chatConfig };
-
-/** Index additionnel (ontologies importées sélectionnées dans le chat). */
-export interface ExtraIndex {
-  cards: Card[];
-  vectors: Float32Array[];
-}
-
 /* ---- Question autonome : les relances (« et pour X ? ») sont réécrites
    avec le contexte de la conversation, pour que retrieval, routeur, SPARQL
    et outils graphe voient la vraie question. ------------------------------ */
 
-async function condenseQuestion(question: string, history: string): Promise<string> {
+async function condenseQuestion(
+  index: ChatIndex,
+  question: string,
+  history: string
+): Promise<string> {
   const sys =
     "Rewrite the user's LAST message as ONE fully self-contained question " +
-    "about the Digital Reference ontology, resolving pronouns and references " +
+    `about the ${refName(index)} ontology, resolving pronouns and references ` +
     "(\"it\", \"the second one\", \"et pour X ?\") using the conversation. " +
     "Keep the SAME language as the last message. If it is already " +
     "self-contained, return it UNCHANGED. Return ONLY the question, nothing else.";
@@ -685,13 +788,16 @@ async function condenseQuestion(question: string, history: string): Promise<stri
 /* ------------------------- Point d'entrée -------------------------- */
 
 export async function answerChat(
+  projectId: string,
   messages: InMessage[],
   emit: ChatEmit = () => {},
   extra: ExtraIndex | null = null
 ): Promise<ChatReply> {
+  const index = projectIndex(projectId); // 409 si le projet n'a pas de référence
   const lastUser = [...messages].reverse().find((m) => m?.role === "user");
   const question = typeof lastUser?.content === "string" ? lastUser.content.trim() : "";
-  if (!question) return { reply: "Please ask a question about the Digital Reference." };
+  if (!question)
+    return { reply: `Please ask a question about ${refName(index)}.` };
 
   if (!configured()) {
     return {
@@ -699,7 +805,7 @@ export async function answerChat(
         "**Chatbot not configured yet** — set `OPENROUTER_API_KEY` in `analysis/.env` " +
         "(see `analysis/.env.example`), then restart the backend.\n\n" +
         "Meanwhile, here is a simple lexical search:\n\n" +
-        chatStub(question),
+        chatStub(index.ref, question),
     };
   }
 
@@ -717,7 +823,7 @@ export async function answerChat(
   emit({ type: "stage", stage: "embed", status: "start" });
   let standalone = question;
   if (history) {
-    standalone = await condenseQuestion(question, history);
+    standalone = await condenseQuestion(index, question, history);
     if (standalone !== question) emit({ type: "rewrite", standalone });
   }
 
@@ -727,7 +833,7 @@ export async function answerChat(
   {
     const t0 = Date.now();
     try {
-      await ensureIndex();
+      await ensureVectors(projectId);
       const [raw] = await embed([standalone]);
       qv = Float32Array.from(raw);
       emit({
@@ -737,15 +843,23 @@ export async function answerChat(
         tookMs: Date.now() - t0,
       });
     } catch (e) {
-      console.warn(`[chat] embeddings indisponibles, retrieval lexical seul (${(e as Error).message})`);
-      emit({ type: "embed", dims: 0, preview: [], tookMs: Date.now() - t0, error: "embeddings unavailable — lexical fallback" });
+      console.warn(
+        `[chat] embeddings indisponibles, retrieval lexical seul (${(e as Error).message})`
+      );
+      emit({
+        type: "embed",
+        dims: 0,
+        preview: [],
+        tookMs: Date.now() - t0,
+        error: "embeddings unavailable — lexical fallback",
+      });
     }
   }
 
   // 2. Vector search hybride sur les fiches
   emit({ type: "stage", stage: "retrieve", status: "start" });
   const t1 = Date.now();
-  const { top: retrieved, scored, poolSize } = retrieve(standalone, qv, extra);
+  const { top: retrieved, scored, poolSize } = retrieve(index, standalone, qv, extra);
   emit({
     type: "retrieval",
     total: poolSize,
@@ -761,9 +875,9 @@ export async function answerChat(
     })),
   });
 
-  // 3. Routage lookup / structural
+  // 3. Routage lookup / structural / graph
   emit({ type: "stage", stage: "route", status: "start" });
-  const route = await routeQuestion(standalone, historyBlock);
+  const route = await routeQuestion(index, standalone, historyBlock);
   emit({ type: "route", route });
 
   let sparqlBlock = "";
@@ -772,7 +886,7 @@ export async function answerChat(
   let graphUsed: { tool: string; detail: string } | undefined;
   if (route === "structural") {
     emit({ type: "stage", stage: "sparql", status: "start" });
-    const gen = await generateSparql(standalone, retrieved, emit);
+    const gen = await generateSparql(index, standalone, retrieved, emit);
     if (gen) {
       usedSparql = gen.sparql;
       sparqlBlock = `\n\nSPARQL query executed on the ontology:\n${gen.sparql}\n\nResults:\n${gen.results}`;
@@ -785,7 +899,7 @@ export async function answerChat(
     }
   } else if (route === "graph") {
     emit({ type: "stage", stage: "graph", status: "start" });
-    const g = await runGraphTool(standalone, retrieved, emit);
+    const g = await runGraphTool(index, standalone, retrieved, emit);
     if (g) {
       graphUsed = { tool: g.tool, detail: g.detail.slice(0, 2000) };
       sparqlBlock = `\n\nGraph computation executed on the ontology graph (exact, exhaustive):\n${g.detail}`;
@@ -793,17 +907,16 @@ export async function answerChat(
   }
 
   const sys =
-    "You are the assistant of the Digital Reference Explorer, answering questions " +
-    "about the Digital Reference — an open-source OWL ontology of semiconductor " +
-    "supply chains.\n" +
+    `You are the assistant of the Ontology Explorer, answering questions about ` +
+    `${refIntro(index)}. It is the reference ontology of the current project.\n` +
     "STRICT rules:\n" +
     "- Answer ONLY from the provided context (concept cards and SPARQL results). " +
     "If the context does not contain the answer, say you could not find it in the " +
     "ontology — never invent classes, properties or facts.\n" +
     "- Cite the concepts you use as **Label** (`prefixed:IRI`).\n" +
     "- The context may also contain classes from IMPORTED ontologies (their " +
-    "module is the ontology name) with their alignment links to the DR " +
-    "(equivalent / subclass of / close match). Use them, and make the DR " +
+    `module is the ontology name) with their alignment links to ${refName(index)} ` +
+    "(equivalent / subclass of / close match). Use them, and make those " +
     "links explicit when they help the answer.\n" +
     "- Answer in the SAME language as the question (English question => English " +
     "answer, French => French). Ignore the language of the ontology content.\n" +
@@ -823,7 +936,7 @@ export async function answerChat(
     (standalone !== question
       ? `(follow-up interpreted in context as: ${standalone})\n`
       : "") +
-    `\nOntology context:\n${contextBlock(retrieved)}${sparqlBlock}`;
+    `\nOntology context:\n${contextBlock(index, retrieved)}${sparqlBlock}`;
 
   emit({ type: "stage", stage: "answer", status: "start" });
   const reply = await llm(CFG.modelAnswer, sys, user, 1600);
