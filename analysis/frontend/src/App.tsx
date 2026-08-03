@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { fetchMeta } from "./api";
 import { onGraphFocus } from "./bus";
 import { setPrefixes } from "./curie";
+import { SETTINGS_EVENT } from "./settings";
+import SettingsModal from "./components/SettingsModal";
 import type { Meta } from "./types";
 
 // Chaque onglet est une « page » : sa propre URL (#/graph, #/chat…) et son
@@ -45,6 +47,7 @@ export default function App() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dark, toggleDark] = useDarkMode();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // L'URL est la source de vérité : navigation avant/arrière du navigateur
   // comprise, et chaque onglet est adressable directement.
@@ -57,12 +60,30 @@ export default function App() {
   useEffect(() => onGraphFocus(() => navigate("graph")), []);
 
   useEffect(() => {
-    fetchMeta()
-      .then((m) => {
-        setPrefixes(m.prefixes);
-        setMeta(m);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+    let cancelled = false;
+    const load = () => {
+      fetchMeta()
+        .then((m) => {
+          if (cancelled) return;
+          setPrefixes(m.prefixes);
+          setMeta(m);
+          setError(null);
+        })
+        .catch((e) => {
+          if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        });
+    };
+    load();
+    // Recharger quand l'endpoint backend change dans les réglages.
+    const onSettings = () => {
+      setMeta(null);
+      load();
+    };
+    window.addEventListener(SETTINGS_EVENT, onSettings);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(SETTINGS_EVENT, onSettings);
+    };
   }, []);
 
   const body = useMemo(() => {
@@ -119,8 +140,17 @@ export default function App() {
         >
           {dark ? "☀️" : "🌙"}
         </button>
+        <button
+          className="icon-btn"
+          onClick={() => setSettingsOpen(true)}
+          title="Settings"
+          aria-label="Settings"
+        >
+          ⚙️
+        </button>
       </header>
       <main className="app-body">{body}</main>
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

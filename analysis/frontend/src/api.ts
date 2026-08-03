@@ -1,7 +1,8 @@
 import type { BuiltGraph, ChatMessage, ChatReply, Meta, SparqlResult } from "./types";
+import { apiUrl } from "./settings";
 
 async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await fetch(apiUrl(url));
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
 }
@@ -23,7 +24,7 @@ export function fetchGraph(opts: {
 }
 
 export async function runSparql(query: string): Promise<SparqlResult> {
-  const res = await fetch("/api/sparql", {
+  const res = await fetch(apiUrl("/api/sparql"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query }),
@@ -42,7 +43,7 @@ export async function sendChat(
   messages: ChatMessage[],
   context?: ChatContext
 ): Promise<ChatReply> {
-  const res = await fetch("/api/chat", {
+  const res = await fetch(apiUrl("/api/chat"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     // L'historique envoyé ne garde que role/content (citations = décor local)
@@ -65,7 +66,7 @@ export async function streamChat(
   onEvent: (ev: Record<string, unknown>) => void,
   context?: ChatContext
 ): Promise<ChatReply> {
-  const res = await fetch("/api/chat/stream", {
+  const res = await fetch(apiUrl("/api/chat/stream"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -125,7 +126,7 @@ export function loadChat(
 }
 
 export async function saveChat(id: string, messages: ChatMessage[]): Promise<void> {
-  const res = await fetch(`/api/chats/${encodeURIComponent(id)}`, {
+  const res = await fetch(apiUrl(`/api/chats/${encodeURIComponent(id)}`), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages }),
@@ -134,12 +135,12 @@ export async function saveChat(id: string, messages: ChatMessage[]): Promise<voi
 }
 
 export async function deleteChat(id: string): Promise<void> {
-  const res = await fetch(`/api/chats/${encodeURIComponent(id)}`, { method: "DELETE" });
+  const res = await fetch(apiUrl(`/api/chats/${encodeURIComponent(id)}`), { method: "DELETE" });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 }
 
 export async function clearChats(): Promise<void> {
-  const res = await fetch("/api/chats", { method: "DELETE" });
+  const res = await fetch(apiUrl("/api/chats"), { method: "DELETE" });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 }
 
@@ -215,7 +216,7 @@ export async function importWsOntology(
   name: string,
   content: string
 ): Promise<WsOntology> {
-  const res = await fetch("/api/workspace/ontologies", {
+  const res = await fetch(apiUrl("/api/workspace/ontologies"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, name, content }),
@@ -226,7 +227,7 @@ export async function importWsOntology(
 }
 
 export async function deleteWsOntology(id: string): Promise<void> {
-  const res = await fetch(`/api/workspace/ontologies/${encodeURIComponent(id)}`, {
+  const res = await fetch(apiUrl(`/api/workspace/ontologies/${encodeURIComponent(id)}`), {
     method: "DELETE",
   });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -239,7 +240,7 @@ export function loadWsResults(
 }
 
 async function postJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { method: "POST" });
+  const res = await fetch(apiUrl(url), { method: "POST" });
   const body = await res.json();
   if (!res.ok) throw new Error(body?.error ?? `${res.status} ${res.statusText}`);
   return body as T;
@@ -263,15 +264,15 @@ export function fetchWsGraph(
 }
 
 export function mappedTtlUrl(id: string): string {
-  return `/api/workspace/ontologies/${encodeURIComponent(id)}/mapped.ttl`;
+  return apiUrl(`/api/workspace/ontologies/${encodeURIComponent(id)}/mapped.ttl`);
 }
 
 export function sssomTsvUrl(id: string): string {
-  return `/api/workspace/ontologies/${encodeURIComponent(id)}/mappings.sssom.tsv`;
+  return apiUrl(`/api/workspace/ontologies/${encodeURIComponent(id)}/mappings.sssom.tsv`);
 }
 
 export function fileUrl(name: string): string {
-  return `/api/files/${encodeURIComponent(name)}`;
+  return apiUrl(`/api/files/${encodeURIComponent(name)}`);
 }
 
 /* ---- Split structurel : export d'un sous-ensemble en Turtle ---- */
@@ -286,7 +287,7 @@ export interface SplitExportRequest {
 }
 
 export async function exportSplit(req: SplitExportRequest): Promise<Blob> {
-  const res = await fetch("/api/split/export", {
+  const res = await fetch(apiUrl("/api/split/export"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
