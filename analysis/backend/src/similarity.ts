@@ -293,12 +293,33 @@ export interface FacetScores {
   detail: FacetDetail;
 }
 
-/* Poids : la facette sémantique domine (le signal le plus fiable seul),
-   mais lexical + structurel pèsent ensemble davantage — un désaccord
-   entre facettes se voit dans le score ET reste inspectable via detail. */
-const W_LEXICAL = 0.3;
-const W_STRUCTURAL = 0.25;
-const W_SEMANTIC = 0.45;
+/* Poids : la facette sémantique domine largement. Mesuré sur un jeu d'essai
+   adversarial (synonymes sans recouvrement lexical, faux amis à libellé
+   identique, homonymes que seul le contexte sépare) : à 0.30/0.25/0.45 le
+   lexical faisait passer les faux amis devant les vrais matchs. Le lexical
+   reste présent pour départager et pour rester utilisable si les embeddings
+   sont indisponibles ; le structurel est ce qui distingue deux homonymes. */
+const W_LEXICAL = 0.12;
+const W_STRUCTURAL = 0.18;
+const W_SEMANTIC = 0.7;
+
+/* Un libellé qui colle alors que le sens ne suit pas est la signature du faux
+   ami : on abaisse le score au lieu de le récompenser (l'ancien plancher à
+   0.95 sur libellé identique faisait exactement l'inverse). */
+const DISAGREEMENT = 0.4;
+const DISAGREEMENT_LEX_AT = 0.65;
+const DISAGREEMENT_SEM_UNDER = 0.6;
+
+/* Recalibrage : la moyenne pondérée de composantes qui dépassent rarement
+   0.7 produit des scores tassés autour de 0.5, où « strong ≥ 0.70 » n'était
+   jamais atteint autrement que par l'ancien plancher. Cette logistique est
+   strictement croissante — elle ne change aucun classement, elle rend
+   seulement les seuils et le pourcentage affiché interprétables. */
+const CAL_MID = 0.52;
+const CAL_SLOPE = 12;
+function calibrate(x: number): number {
+  return clamp01(1 / (1 + Math.exp(-CAL_SLOPE * (x - CAL_MID))));
+}
 
 export function compareEntities(
   a: EntityProfile,
@@ -361,14 +382,24 @@ export function compareEntities(
       [structural, W_STRUCTURAL * structRichness],
       [semantic, W_SEMANTIC],
     ]) ?? 0;
-  /* Plancher lexical : labels normalisés identiques => quasi-certitude,
-     une variante identique (localName, altLabel) => très probable.      */
-  if (a.norm.length > 2 && a.norm === b.norm)
-    aggregated = Math.max(aggregated, 0.95);
-  else if (
-    a.variants.some((v) => v.length > 2 && b.variants.includes(v))
+
+  /* Départage : à facettes équivalentes, un libellé (ou une variante :
+     localName, altLabel) strictement identique fait pencher la balance —
+     mais sans jamais écraser un désaccord entre facettes.               */
+  if (a.norm.length > 2 && a.norm === b.norm) aggregated += 0.03;
+  else if (a.variants.some((v) => v.length > 2 && b.variants.includes(v)))
+    aggregated += 0.015;
+
+  /* Faux ami : libellé très proche, sens qui ne suit pas. */
+  if (
+    lexical >= DISAGREEMENT_LEX_AT &&
+    semantic !== undefined &&
+    semantic < DISAGREEMENT_SEM_UNDER
   )
-    aggregated = Math.max(aggregated, 0.9);
+    aggregated *=
+      1 - (DISAGREEMENT * (DISAGREEMENT_SEM_UNDER - semantic)) / DISAGREEMENT_SEM_UNDER;
+
+  aggregated = calibrate(clamp01(aggregated));
 
   return {
     lexical,
