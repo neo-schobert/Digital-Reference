@@ -14,6 +14,7 @@ import {
 } from "../api";
 import type { ChatMessage, ChatTrace } from "../types";
 import ChatPipeline from "../components/ChatPipeline";
+import SidePanel from "../components/SidePanel";
 import { requestGraphFocus } from "../bus";
 import { renderDiagram } from "../diagram";
 
@@ -379,7 +380,15 @@ export default function ChatTab() {
   return (
     <div className="chat-page">
       {/* ---- Historique des conversations ---- */}
-      <aside className="chat-side">
+      <SidePanel
+        id="chat-history"
+        side="left"
+        title="Chats"
+        defaultWidth={240}
+        min={180}
+        max={420}
+        className="chat-side"
+      >
         <button className="new-chat-btn" onClick={newChat} disabled={waiting}>
           ＋ New chat
         </button>
@@ -416,7 +425,7 @@ export default function ChatTab() {
             Clear all conversations
           </button>
         )}
-      </aside>
+      </SidePanel>
 
       {/* ---- Conversation ---- */}
       <div className="chat-layout">

@@ -52,6 +52,7 @@ import { buildColorMap, NEUTRAL_DARK, NEUTRAL_LIGHT } from "../palette";
 import type { BuiltGraph, GraphLink, GraphNode, Meta } from "../types";
 import NetworkCanvas, { NetworkCanvasHandle } from "../components/NetworkCanvas";
 import NetworkCanvas3D, { NetworkCanvas3DHandle } from "../components/NetworkCanvas3D";
+import SidePanel from "../components/SidePanel";
 import { clearPins, pinnedIds, savePins, subscribePins, totalPinCount } from "../pinStore";
 
 type GroupMode = "lobes" | "modules";
@@ -795,7 +796,15 @@ export default function GraphTab({ meta, dark }: Props) {
   return (
     <div className="graph-layout">
       {/* ------------- Panneau latéral gauche ------------- */}
-      <aside className="sidebar">
+      <SidePanel
+        id="graph-filters"
+        side="left"
+        title="Filters"
+        defaultWidth={290}
+        min={230}
+        max={480}
+        className="sidebar"
+      >
         <div className="search-box">
           <input
             placeholder="Search for a class…"
@@ -907,7 +916,7 @@ export default function GraphTab({ meta, dark }: Props) {
             ))}
           </div>
         </div>
-      </aside>
+      </SidePanel>
 
       {/* ------------- Zone graphe ------------- */}
       <div className="graph-main">
@@ -1309,7 +1318,15 @@ export default function GraphTab({ meta, dark }: Props) {
       </div>
 
       {/* ------------- Panneau de détails ------------- */}
-      <aside className="details-panel">
+      <SidePanel
+        id="graph-details"
+        side="right"
+        title="Details"
+        defaultWidth={320}
+        min={250}
+        max={560}
+        className="details-panel"
+      >
         {selectedLink ? (
           <>
             <h2>{selectedLink.label ?? "subClassOf"}</h2>
@@ -1440,7 +1457,7 @@ export default function GraphTab({ meta, dark }: Props) {
             or search for a class in the left panel.
           </div>
         )}
-      </aside>
+      </SidePanel>
     </div>
   );
 }
